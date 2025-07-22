@@ -1,56 +1,51 @@
+// Test2.tsx (Camera.tsx)
 import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, Button, Alert, ActivityIndicator, Platform } from 'react-native';
-import { CameraView, useCameraPermissions, CameraType, PermissionResponse } from 'expo-camera';
+import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
+// No need for expo-location here if photos aren't tied to map points
+// import * as Location from 'expo-location';
 
 import Styles from '../styles/styles';
+import { usePhotosContext } from '../context/PhotosContext'; // Import usePhotosContext
 
-import type { Coordinate, Test2ScreenProps } from '../navigation/types';
+import type { Test2ScreenProps } from '../navigation/types';
 
 export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenProps) {
     const cameraRef = useRef<CameraView>(null);
     const [facing, setFacing] = useState<CameraType>('back');
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-    const [locationPermission, requestLocationPermission] = Location.useForegroundPermissions();
-    const [photoUri, setPhotoUri] = useState<string | null>(null);
-    const [locationAtCapture, setLocationAtCapture] = useState<Coordinate | null>(null);
-    const [isGettingLocation, setIsGettingLocation] = useState(false);
+    const [photoUriTemp, setPhotoUriTemp] = useState<string | null>(null); // Temporary state for preview
+    const [isTakingPhoto, setIsTakingPhoto] = useState(false);
+
+    const { addFormPhoto } = usePhotosContext(); // Get addFormPhoto from context
 
     useEffect(() => {
         if (cameraPermission === null || !cameraPermission.granted) {
             requestCameraPermission();
         }
-        if (locationPermission === null || !locationPermission.granted) {
-            requestLocationPermission();
-        }
-    }, [cameraPermission, locationPermission, requestCameraPermission, requestLocationPermission]);
+    }, [cameraPermission, requestCameraPermission]);
 
-
-    if (cameraPermission === null || locationPermission === null) {
+    if (cameraPermission === null) {
         return (
             <View style={styles.fullContainer}>
-                <Text style={styles.permissionText}>Checking permissions (Camera & Location)...</Text>
+                <Text style={styles.permissionText}>Checking camera permissions...</Text>
                 <ActivityIndicator size="large" color={Styles.buttonText.color} style={{ marginTop: 20 }} />
             </View>
         );
     }
 
-    if (!cameraPermission.granted || !locationPermission.granted) {
+    if (!cameraPermission.granted) {
         return (
             <View style={styles.fullContainer}>
                 <Text style={[styles.permissionText, { textAlign: 'center' }]}>
-                    We need your permission for both Camera and Location to use this feature.
+                    We need your permission for Camera to use this feature.
                 </Text>
-                {(!cameraPermission.granted || !locationPermission.granted) && (
+                {(!cameraPermission.granted) && (
                     <Button
-                        onPress={() => {
-                            if (!cameraPermission.granted) requestCameraPermission();
-                            if (!locationPermission.granted) requestLocationPermission();
-                        }}
-                        title="Grant Permissions"
+                        onPress={() => requestCameraPermission()}
+                        title="Grant Camera Permission"
                         color={Styles.button.backgroundColor}
                     />
                 )}
@@ -63,79 +58,52 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
     }
 
     const takePicture = async () => {
-        if (cameraRef.current && !isGettingLocation) {
-            setIsGettingLocation(true);
-
+        if (cameraRef.current && !isTakingPhoto) {
+            setIsTakingPhoto(true);
             try {
-                console.log("Getting location before taking photo...");
-                let location = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Highest,
-                });
-                const capturedLoc: Coordinate = { latitude: location.coords.latitude, longitude: location.coords.longitude };
-                setLocationAtCapture(capturedLoc);
-                console.log("Location captured:", capturedLoc);
-
                 console.log("Taking photo...");
                 const photo = await cameraRef.current.takePictureAsync({
                     quality: 1,
+                    // You can specify other options like base64: true or exif: true if needed for metadata
                 });
-                setPhotoUri(photo.uri);
+                setPhotoUriTemp(photo.uri); // Set temporary URI for preview
                 console.log('Photo taken temporarily at:', photo.uri);
 
             } catch (error) {
-                console.error("Failed to take picture or get location:", error);
-                setPhotoUri(null);
-                setLocationAtCapture(null);
-                Alert.alert("Error", "Failed to capture photo or location. Please try again.");
+                console.error("Failed to take picture:", error);
+                setPhotoUriTemp(null);
+                Alert.alert("Error", "Failed to capture photo. Please try again.");
             } finally {
-                setIsGettingLocation(false);
+                setIsTakingPhoto(false);
             }
         }
     };
 
     const retakePicture = () => {
-        setPhotoUri(null);
-        setLocationAtCapture(null);
+        setPhotoUriTemp(null);
         console.log('Retaking picture');
     };
 
-    const usePhoto = () => {
-        if (photoUri && locationAtCapture) {
-            console.log("Using photo (temporary URI) and location:", photoUri, locationAtCapture);
-            navigation.navigate('Test', {
-                capturedPhotoUri: photoUri,
-                capturedLocation: locationAtCapture,
-            });
-
-        } else if (!photoUri) {
-            Alert.alert("No Photo", "Please take a picture first.");
-        } else if (!locationAtCapture) {
-            console.warn("Attempted to use photo, but missing locationAtCapture.");
-            Alert.alert("No Location Data", "Could not capture location data with the photo. Please retake.");
+    const usePhoto = async () => {
+        if (photoUriTemp) {
+            console.log("Using photo:", photoUriTemp);
+            await addFormPhoto(photoUriTemp); // Add photo to context
+            navigation.goBack(); // Go back to Map screen
         } else {
-            console.warn("Attempted to use photo, but missing photoUri or locationAtCapture.");
-            Alert.alert("Error", "An unexpected error occurred.");
+            Alert.alert("No Photo", "Please take a picture first.");
         }
     };
 
-
     return (
         <SafeAreaView style={styles.fullContainer}>
-            {photoUri ? (
+            {photoUriTemp ? (
                 <View style={styles.photoPreviewContent}>
-                    <Image source={{ uri: photoUri }} style={styles.photo}/>
-                    {locationAtCapture && (
-                        <View style={styles.locationOverlay}>
-                            <Text style={styles.locationText}>
-                                Lat: {locationAtCapture.latitude.toFixed(4)}, Lng: {locationAtCapture.longitude.toFixed(4)}
-                            </Text>
-                        </View>
-                    )}
+                    <Image source={{ uri: photoUriTemp }} style={styles.photo}/>
                     <View style={styles.controlsContainer}>
-                        <TouchableOpacity style={styles.iconButton} onPress={retakePicture} disabled={isGettingLocation}>
+                        <TouchableOpacity style={styles.iconButton} onPress={retakePicture} disabled={isTakingPhoto}>
                             <Ionicons name="refresh" size={35} color={Styles.buttonText.color}/>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconButton} onPress={usePhoto} disabled={isGettingLocation}>
+                        <TouchableOpacity style={styles.iconButton} onPress={usePhoto} disabled={isTakingPhoto}>
                             <Ionicons name="checkmark-circle-outline" size={35} color={Styles.buttonText.color}/>
                         </TouchableOpacity>
                     </View>
@@ -144,11 +112,11 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
                 <View style={styles.cameraContent}>
                     <CameraView style={styles.camera} facing={facing} ref={cameraRef}/>
                     <View style={styles.controlsContainer}>
-                        <TouchableOpacity style={styles.iconButton} onPress={toggleCameraFacing} disabled={isGettingLocation}>
+                        <TouchableOpacity style={styles.iconButton} onPress={toggleCameraFacing} disabled={isTakingPhoto}>
                             <Ionicons name="camera-reverse" size={35} color={Styles.buttonText.color}/>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.captureButton} onPress={takePicture} disabled={isGettingLocation}>
-                            {isGettingLocation ? (
+                        <TouchableOpacity style={styles.captureButton} onPress={takePicture} disabled={isTakingPhoto}>
+                            {isTakingPhoto ? (
                                 <ActivityIndicator size="small" color={Styles.buttonText.color}/>
                             ) : (
                                 <MaterialIcons name="fiber-manual-record" size={62} color={Styles.buttonText.color}/>
@@ -190,7 +158,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    topRightContainer: {
+    topRightContainer: { // Not used
         position: 'absolute',
         top: 0,
         right: 0,
@@ -205,7 +173,6 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         justifyContent: 'flex-end',
     },
-
     photoPreviewContent: {
         flex: 1,
         flexDirection: 'column',
@@ -234,7 +201,7 @@ const styles = StyleSheet.create({
         padding: 10,
         alignItems: 'center',
     },
-    buttonText: { // This style doesn't seem used on any visible text elements currently
+    buttonText: {
         color: 'white',
         fontSize: 12,
         marginTop: 2,
@@ -254,17 +221,4 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginHorizontal: 20,
     },
-    locationOverlay: {
-        position: 'absolute',
-        top: Platform.OS === 'ios' ? 70 : 40,
-        left: 20,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        padding: 8,
-        borderRadius: 5,
-        zIndex: 1,
-    },
-    locationText: {
-        color: 'white',
-        fontSize: 14,
-    }
 });

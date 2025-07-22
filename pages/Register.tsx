@@ -9,60 +9,43 @@ import {
     Platform,
     TouchableOpacity,
     ScrollView,
-    StyleSheet, // Import StyleSheet for local styles if needed (using Styles from '../styles/styles' primarily)
+    StyleSheet,
 } from 'react-native';
-import { Button } from '@react-navigation/elements'; // Assuming you are using this Button component
-import Styles from '../styles/styles'; // Assuming your main styles are here
+import { Button } from '@react-navigation/elements'; 
+import Styles from '../styles/styles';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
-import { API_URL } from '@env'; // Assuming API_URL is managed by dotenv
+import { API_URL } from '@env';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import type {RootStackNavigationProp, RootStackParamList, RegistrationScreenProps } from '../navigation/types';
 
-// Define types for navigation parameters
-// Make sure these match your RootStackParamList in your navigation setup
-type RootStackParamList = {
-    Login: undefined;
-    Registration: undefined;
-    // Add other screen names if needed for type safety across the app
-    // e.g., Map: undefined;
-};
-
-type RegisterScreenNavigationProp = NativeStackScreenProps<RootStackParamList, 'Registration'>['navigation'];
-
-// Validation functions for email and phone number (keep these)
 const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 };
 
 const validatePhoneNumber = (phoneNumber: string): boolean => {
-    // Basic check: Optional leading plus, followed by one or more digits
     const phoneRegex = /^\+?[0-9]+$/;
-    // Consider more robust validation if needed (min/max length, specific formats)
     return phoneRegex.test(phoneNumber);
 };
 
 function Register() {
-    // --- REMOVED username state ---
     const [password, setPassword] = useState<string>('');
     const [confirmPassword, setConfirmPassword] = useState<string>('');
     const [email, setEmail] = useState<string>('');
-    const [sex, setSex] = useState<string | null>(null); // Can be 'Male', 'Female', or null
+    const [sex, setSex] = useState<string | null>(null);
     const [contactNumber, setContactNumber] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
 
-    // --- ADDED state for First and Last Name ---
     const [firstName, setFirstName] = useState<string>('');
     const [lastName, setLastName] = useState<string>('');
 
 
-    const navigation = useNavigation<RegisterScreenNavigationProp>();
+    const navigation = useNavigation<RootStackNavigationProp>();
 
     const handleRegistration = async () => {
-        // --- ADJUSTED Validation Logic ---
-        // Check required fields: First Name, Last Name, Password, Confirm Password, Email, Sex, Contact Number
         if (!firstName || !lastName || !password || !confirmPassword || !email || !sex || !contactNumber) {
             Alert.alert('Missing Information', 'Please fill in all required fields.');
             return;
@@ -102,8 +85,6 @@ function Register() {
                         onPress: () => navigation.replace('Login'),
                     },
                 ]);
-                // Optional: Clear form fields here after successful registration
-                // setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setConfirmPassword(''); setSex(null); setContactNumber('');
 
             } else {
                  Alert.alert('Registration Status', `Registration request completed with status: ${response.status}`);
@@ -276,14 +257,18 @@ function Register() {
                             </View>
 
                             {loading && (
-                                <View style={{ marginTop: 20, alignItems: 'center', justifyContent: 'center' }}>
+                                <View style={{ marginTop: 20, alignItems: 'center', justifyContent: 'center', width: 300}}>
                                     <ActivityIndicator size="large" color={Styles.text.color} />
                                 </View>
                             )}
-                            <TouchableOpacity style={{ marginTop: 20 }} onPress={() => navigation.navigate('Login')}>
-                                 <Text style={Styles.registerText}>Already have an account? <Text style={Styles.register}>Login</Text></Text>
-                             </TouchableOpacity>
 
+                            <View style={{width: 300, marginTop: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',}}>
+                                <Text style={Styles.registerText}>Already have an account?</Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                                <Text style={Styles.register}>Login</Text>
+                             </TouchableOpacity>
+                            </View>
+                            
                         </View>
                     </View>
                 </ScrollView>

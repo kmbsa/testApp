@@ -2,80 +2,75 @@ import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const isSmallDevice = width < 375;
-// responsiveInputWidth is less relevant now that inputFields use width: '100%'
-const responsiveFormPadding = width * 0.06; // Keep the value
+const responsiveFormPadding = width * 0.06;
 
 const Styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC', // Your main app background color
+    backgroundColor: '#F5F5DC',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10, // Padding on the main container
+    paddingHorizontal: 10,
   },
   formBox: {
-    backgroundColor: '#3D550C', // Darker background for the form box (decorative)
+    backgroundColor: '#3D550C',
     borderRadius: 20,
-    // padding: responsiveFormPadding, // REMOVED - Sizing/padding in responsiveFormContainer
     shadowColor: '#000000',
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
-    // width: '95%', // REMOVED - Sizing/padding in responsiveFormContainer
-    // maxWidth: 500, // REMOVED - Sizing/padding in responsiveFormContainer
-    alignSelf: 'center', // Keep centering
+    alignSelf: 'center',
   },
 
-  // NEW STYLE: For responsive form containers with max width and padding
   responsiveFormContainer: {
-    width: '95%', // Take up 95% of parent width
-    maxWidth: 500, // But no more than 500 units (adjust this value as needed)
-    paddingHorizontal: responsiveFormPadding, // Apply responsive padding
-    paddingVertical: responsiveFormPadding, // Apply responsive padding
-    alignSelf: 'center', // Center the container
+    width: '95%',
+    maxWidth: 500,
+    paddingHorizontal: responsiveFormPadding, 
+    paddingVertical: responsiveFormPadding,
+    alignSelf: 'center',
   },
 
   fieldsContainer: {
     alignItems: 'flex-start',
-    width: '100%', // Keep 100% relative to formBox content area (which now uses responsiveFormContainer)
+    width: '100%',
     justifyContent: 'center',
   },
   text: {
-    color: "#F4D03F", // Text color inside the form box
+    color: "#F4D03F",
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
   },
   inputFields: {
-    backgroundColor: '#FFFFFF', // White background for input fields
+    backgroundColor: '#FFFFFF',
     marginTop: 10,
     marginBottom: 15,
     fontSize: 18,
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#3D550C', // Border color matching form box background
-    width: 300, // Keep 100% relative to fieldsContainer
+    borderColor: '#3D550C',
+    width: 300,
   },
   button: {
-    backgroundColor: '#F4D03F', // Button background color
+    backgroundColor: '#F4D03F',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     marginTop: 20,
     width: 300,
-    alignItems: 'center', // Centers the text/indicator inside the button
+    alignItems: 'center',
     shadowColor: '#000000',
     shadowOpacity: 0.2,
     shadowRadius: 5,
     elevation: 3,
   },
   buttonText: {
-    color: '#3D550C', // Text color on buttons
+    color: '#3D550C',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  registerContainer: { // This style doesn't seem used
+  registerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -93,14 +88,14 @@ const Styles = StyleSheet.create({
     fontWeight: 'bold',
     textDecorationLine: 'underline',
   },
-  welcomeText: { // This style doesn't seem used
+  welcomeText: { 
     fontSize: 26,
     fontWeight: 'bold',
     color: '#3D550C',
     marginBottom: 30,
     textAlign: 'center',
   },
-  loadingIndicator: { // This style doesn't seem used (inline styling used)
+  loadingIndicator: {
     marginTop: 30,
     alignItems: 'center',
   },
