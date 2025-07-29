@@ -30,9 +30,11 @@ import type { RootStackNavigationProp, Coordinate } from '../navigation/types';
 import { usePointsContext } from '../context/PointsContext';
 import { usePhotosContext } from '../context/PhotosContext';
 
-// Import Constants for accessing environment variables
+import { useAuth } from '../context/AuthContext'; // <--- Import useAuth
+
 import Constants from 'expo-constants';
-const API_URL = Constants.expoConfig?.extra?.API_URL; // Adjust this if you are using react-native-dotenv
+
+import { API_URL } from "@env";
 
 const isCoordinateInArray = (coordinate: { latitude: number; longitude: number }, array: { latitude: number; longitude: number }[], epsilon = 0.00001): boolean => {
     return array.some(point =>
@@ -57,6 +59,8 @@ export default function Map() {
     const [isSubmitting, setIsSubmitting] = useState(false); // New state for loading indicator
 
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+    const { userToken, userData, signOut } = useAuth(); 
 
     // For swipe-down functionality
     const panY = useRef(new Animated.Value(0)).current;
@@ -208,10 +212,19 @@ export default function Map() {
     };
 
     const handleSubmitForm = async () => {
-        if (isSubmitting) return; // Prevents multiple submissions
+        if (isSubmitting) return;
 
+        // Basic validation
         if (!placeName.trim() || !areaRegion.trim() || !areaProvince.trim()) {
             Alert.alert("Missing Information", "Please fill in all required form fields (Area Name, Region, Province).");
+            return;
+        }
+
+        const currentUserId = userData?.user_id;
+        if (!currentUserId) {
+            Alert.alert("Authentication Error", "User ID not found. Please log in again.");
+
+            await signOut();
             return;
         }
 
@@ -224,11 +237,12 @@ export default function Map() {
         setIsSubmitting(true);
 
         const areaData = {
+            user_id: currentUserId,
             name: placeName,
             region: areaRegion,
             province: areaProvince,
-            coordinates: points, // The array of Coordinate objects
-            photos: formPhotos.map(p => ({ id: p.id, uri: p.uri }))
+            coordinates: points,
+            photos: formPhotos.map(p => ({ uri: p.uri }))
         };
 
         console.log("Attempting to submit data:", JSON.stringify(areaData, null, 2));
@@ -238,31 +252,37 @@ export default function Map() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // Add any authorization headers here if needed, e.g.:
-                    // 'Authorization': 'Bearer YOUR_AUTH_TOKEN'
+                    'Authorization': `Bearer ${userToken}`
                 },
                 body: JSON.stringify(areaData),
             });
 
-            if (response.ok) {
-                const responseData = await response.json();
-                console.log("Server response:", responseData);
-                Alert.alert("Success!", "Area details submitted successfully.");
+            if (response.status === 401 || response.status === 403) {
+                Alert.alert("Session Expired", "Your session has expired. Please log in again.");
+                await signOut();
+                return;
+            }
 
-                resetPoints();
-                clearFormPhotos();
-                setPlaceName('');
-                setAreaRegion('');
-                setAreaProvince('');
-                setModalVisible(false);
-                panY.setValue(0);
-                setUserLocation(null);
-
-            } else {
+            if (!response.ok) {
                 const errorText = await response.text();
                 console.error("Server error:", response.status, errorText);
                 Alert.alert("Submission Failed", `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`);
+                return;
             }
+
+            const responseData = await response.json();
+            console.log("Server response:", responseData);
+            Alert.alert("Success!", "Area details submitted successfully.");
+
+            resetPoints();
+            clearFormPhotos();
+            setPlaceName('');
+            setAreaRegion('');
+            setAreaProvince('');
+            setModalVisible(false);
+            panY.setValue(0);
+            setUserLocation(null);
+
         } catch (error) {
             console.error("Network or submission error:", error);
             Alert.alert("Error", `Could not connect to the server or submit data. Please check your network connection.\nDetails: ${error instanceof Error ? error.message : String(error)}`);
@@ -271,7 +291,6 @@ export default function Map() {
         }
     };
 
-    // PanResponder for swipe-down modal dismissal
     const panResponder = useRef(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,

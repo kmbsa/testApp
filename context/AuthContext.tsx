@@ -29,19 +29,17 @@ interface RegistrationPayload {
   contact_no: string;
 }
 
-// Define the shape of the Auth Context data
 interface AuthContextType {
-  userToken: string | null; // The user's authentication token
-  userData: UserData | null; // The user's data
-  isLoading: boolean; // State to indicate if initial loading/check is happening
-  isSigningIn: boolean; // State to indicate if login process is happening
-  isSigningUp: boolean; // State to indicate if registration process is happening
-  error: string | null; // Store any authentication error message
-  // --- ADDED Type Annotations to Parameters ---
-  signIn: (email: string, password: string) => Promise<void>; // email and password are strings
-  signUp: (userDataPayload: RegistrationPayload) => Promise<void>; // Pass the RegistrationPayload interface
-  signOut: () => Promise<void>; // Function to handle logout
-  fetchUserData: () => Promise<void>; // Function to refetch user data if needed
+  userToken: string | null;
+  userData: UserData | null;
+  isLoading: boolean;
+  isSigningIn: boolean;
+  isSigningUp: boolean;
+  error: string | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (userDataPayload: RegistrationPayload) => Promise<void>;
+  signOut: () => Promise<void>;
+  fetchUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
     checkToken();
-  }, []); // Run only once on mount
+  }, []);
 
   // --- Internal function to fetch user data ---
   const internalFetchUserData = useCallback(async (token: string) => {
@@ -109,13 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         console.log(
           "AuthContext: User data fetch returned 401, token likely expired. Signing out."
         );
-        signOut(); // Call signOut to remove invalid token and redirect via navigator
+        signOut();
       }
-      throw e; // Re-throw the error so calling functions can catch it (e.g., in useEffect)
+      throw e;
     }
-  }, []); // No dependencies that should trigger re-creation
+  }, []); 
 
-  // --- Effect to fetch user data when token changes ---
   useEffect(() => {
     console.log(
       "AuthContext: userToken state changed:",
@@ -124,14 +121,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const handleUserTokenChange = async () => {
       if (userToken) {
         try {
-          // Fetch user data using the new token
+
           await internalFetchUserData(userToken);
         } catch (e) {
-          // Error fetching data already handled in internalFetchUserData (including sign out)
-          // No need to re-handle error here unless specific action is needed
         }
       } else {
-        // Clear user data if token is removed/nullified
         console.log("AuthContext: userToken is null, clearing user data.");
         setUserData(null);
       }
@@ -139,15 +133,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     handleUserTokenChange();
   }, [userToken, internalFetchUserData]);
 
-  // --- Public API functions ---
-
   const signIn = useCallback(async (email: string, password: string) => {
     setIsSigningIn(true);
     setError(null);
     console.log("AuthContext: Attempting to sign in...", { email });
     try {
       const response = await axios.post(`${API_URL}/auth/login`, {
-        user: email, // Assuming backend expects 'user' for login email/username
+        user: email,
         password: password,
       });
 
@@ -158,10 +150,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUserToken(token); // Update state, which will trigger fetchUserData effect
         console.log("AuthContext: Token saved and state updated.");
       } else {
-        // This case should ideally be handled by API returning an error status code
         setError("Login failed: No token received from API.");
         console.error("AuthContext: Login failed: No token received.");
-        throw new Error("Login failed: No token received."); // Throw an error
+        throw new Error("Login failed: No token received.");
       }
     } catch (e: any) {
       console.error("AuthContext: Login API error:", e);
@@ -177,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } else {
         setError("Login failed: Network error or unexpected issue.");
       }
-      throw e; // Re-throw the error for the Login screen to catch and display alert
+      throw e; 
     } finally {
       setIsSigningIn(false);
       console.log("AuthContext: Sign in process ended.");
@@ -191,14 +182,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       email: userDataPayload.email,
     });
     try {
-      // Make the POST request to the registration endpoint
       const response = await axios.post(`${API_URL}/user`, userDataPayload);
 
       if (response.status === 201) {
         console.log("AuthContext: Registration successful:", response.data);
-        // Registration doesn't automatically log the user in, just returns success
       } else {
-        // Handle other potential non-error status codes if your API design uses them for failure
         setError(
           response.data?.error ||
             `Registration failed with status ${response.status}`
@@ -208,12 +196,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           response.status,
           response.data
         );
-        throw new Error("Registration failed"); // Throw a generic error
+        throw new Error("Registration failed");
       }
     } catch (e: any) {
       console.error("AuthContext: Registration API error:", e);
       if (axios.isAxiosError(e) && e.response) {
-        // Use backend error message if available
         const backendError =
           e.response.data?.error ||
           `Server error (Status: ${e.response.status})`;
@@ -252,11 +239,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         "AuthContext: Failed to remove token from storage or call backend logout:",
         e
       );
-      // Decide if you want to alert the user here or just log
     }
-    // Navigation logic (resetting stack) will happen in the navigator based on token state
     console.log("AuthContext: Sign out process complete.");
-  }, []); // No dependencies that should trigger re-creation
+  }, []);
 
   const fetchUserData = useCallback(async () => {
     if (userToken) {
@@ -264,13 +249,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       await internalFetchUserData(userToken);
     } else {
       console.warn("AuthContext: fetchUserData called but no token found.");
-      // Optionally set error or trigger sign out if fetching is expected but token is missing
       setError("Cannot fetch user data: No authentication token found.");
       // signOut(); // Or sign out if this indicates an invalid state
     }
-  }, [userToken, internalFetchUserData]); // Depend on userToken and the internal fetch function
+  }, [userToken, internalFetchUserData]);
 
-  // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(
     () => ({
       userToken,
