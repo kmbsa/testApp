@@ -30,7 +30,7 @@ import type { RootStackNavigationProp, Coordinate } from '../navigation/types';
 import { usePointsContext } from '../context/PointsContext';
 import { usePhotosContext } from '../context/PhotosContext';
 
-import { useAuth } from '../context/AuthContext'; // <--- Import useAuth
+import { useAuth } from '../context/AuthContext';
 
 import Constants from 'expo-constants';
 
@@ -56,17 +56,15 @@ export default function Map() {
     const [placeName, setPlaceName] = useState('');
     const [areaRegion, setAreaRegion] = useState('');
     const [areaProvince, setAreaProvince] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false); // New state for loading indicator
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
     const { userToken, userData, signOut } = useAuth(); 
 
-    // For swipe-down functionality
     const panY = useRef(new Animated.Value(0)).current;
     const initialModalHeight = useRef(0);
 
-    // Reset form fields and hide modal when navigating away
     useFocusEffect(
         useCallback(() => {
             return () => {
@@ -242,7 +240,7 @@ export default function Map() {
             region: areaRegion,
             province: areaProvince,
             coordinates: points,
-            photos: formPhotos.map(p => ({ uri: p.uri }))
+            photos: formPhotos.map(p => ({ base64: p.base64, mimeType: p.mimeType, filename: p.filename }))
         };
 
         console.log("Attempting to submit data:", JSON.stringify(areaData, null, 2));
@@ -558,7 +556,6 @@ export default function Map() {
                                     </TouchableOpacity>
                                 </View>
 
-                                {/* Display multiple attached photos */}
                                 {formPhotos.length > 0 ? (
                                     <View style={localStyles.photoPreviewGrid}>
                                         {formPhotos.map(photo => (

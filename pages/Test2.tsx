@@ -1,14 +1,13 @@
 // Test2.tsx (Camera.tsx)
 import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, Button, Alert, ActivityIndicator, Platform } from 'react-native';
-import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
+// Import CameraCapturedPicture type here
+import { CameraView, useCameraPermissions, CameraType, CameraCapturedPicture } from 'expo-camera';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// No need for expo-location here if photos aren't tied to map points
-// import * as Location from 'expo-location';
 
 import Styles from '../styles/styles';
-import { usePhotosContext } from '../context/PhotosContext'; // Import usePhotosContext
+import { usePhotosContext } from '../context/PhotosContext';
 
 import type { Test2ScreenProps } from '../navigation/types';
 
@@ -16,10 +15,13 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
     const cameraRef = useRef<CameraView>(null);
     const [facing, setFacing] = useState<CameraType>('back');
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-    const [photoUriTemp, setPhotoUriTemp] = useState<string | null>(null); // Temporary state for preview
+    
+    // FIX 1: Explicitly type the useState for capturedPhoto
+    const [capturedPhoto, setCapturedPhoto] = useState<CameraCapturedPicture | null>(null); 
+    
     const [isTakingPhoto, setIsTakingPhoto] = useState(false);
 
-    const { addFormPhoto } = usePhotosContext(); // Get addFormPhoto from context
+    const { addFormPhoto } = usePhotosContext();
 
     useEffect(() => {
         if (cameraPermission === null || !cameraPermission.granted) {
@@ -63,15 +65,19 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
             try {
                 console.log("Taking photo...");
                 const photo = await cameraRef.current.takePictureAsync({
-                    quality: 1,
-                    // You can specify other options like base64: true or exif: true if needed for metadata
+                    quality: 0.7,
+                    base64: true, // IMPORTANT: Request base64 here!
                 });
-                setPhotoUriTemp(photo.uri); // Set temporary URI for preview
-                console.log('Photo taken temporarily at:', photo.uri);
+                
+                // FIX 2: This line is now correctly typed
+                setCapturedPhoto(photo); 
+                
+                console.log('Photo captured:', photo.uri);
+                console.log('Photo base64 (first 50 chars):', photo.base64 ? photo.base64.substring(0, 50) + '...' : 'N/A');
 
             } catch (error) {
                 console.error("Failed to take picture:", error);
-                setPhotoUriTemp(null);
+                setCapturedPhoto(null);
                 Alert.alert("Error", "Failed to capture photo. Please try again.");
             } finally {
                 setIsTakingPhoto(false);
@@ -80,15 +86,16 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
     };
 
     const retakePicture = () => {
-        setPhotoUriTemp(null);
+        setCapturedPhoto(null);
         console.log('Retaking picture');
     };
 
     const usePhoto = async () => {
-        if (photoUriTemp) {
-            console.log("Using photo:", photoUriTemp);
-            await addFormPhoto(photoUriTemp); // Add photo to context
-            navigation.goBack(); // Go back to Map screen
+        if (capturedPhoto) {
+            console.log("Using photo:", capturedPhoto.uri);
+            // FIX 3: This now correctly passes the object
+            await addFormPhoto(capturedPhoto); 
+            navigation.goBack();
         } else {
             Alert.alert("No Photo", "Please take a picture first.");
         }
@@ -96,9 +103,10 @@ export default function PhotoCaptureScreen({ navigation, route }: Test2ScreenPro
 
     return (
         <SafeAreaView style={styles.fullContainer}>
-            {photoUriTemp ? (
+            {capturedPhoto ? ( 
                 <View style={styles.photoPreviewContent}>
-                    <Image source={{ uri: photoUriTemp }} style={styles.photo}/>
+                    {/* FIX 4: capturedPhoto is now correctly typed as an object with uri */}
+                    <Image source={{ uri: capturedPhoto.uri }} style={styles.photo}/> 
                     <View style={styles.controlsContainer}>
                         <TouchableOpacity style={styles.iconButton} onPress={retakePicture} disabled={isTakingPhoto}>
                             <Ionicons name="refresh" size={35} color={Styles.buttonText.color}/>
