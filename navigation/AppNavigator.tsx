@@ -1,5 +1,3 @@
-// src/navigation/AppNavigator.tsx - Main Navigator
-
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -11,7 +9,6 @@ import AuthenticatedStack from './AuthenticatedStack';
 
 import { useAuth } from '../context/AuthContext';
 
-// Import RootStackParamList type
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();

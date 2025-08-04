@@ -1,19 +1,14 @@
-// src/navigation/AuthenticatedStack.tsx
-
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-
 import Home from '../pages/Home';
 import Map from '../pages/Map';
-import CameraModule from '../pages/Camera'; // Keep the import
+import Camera from '../pages/Camera';
+import MapEntries from '../pages/MapEntries';
 
+import { PointsProvider } from '../context/PointsContext';
 
-import Test from '../pages/Test';
-import Test2 from '../pages/Test2';
-import { PointsProvider } from '../context/PointsContext'; // Adjust path
-
-import type { RootStackParamList } from './types'; // Ensure path is correct
+import type { RootStackParamList } from './types';
 
 const AuthenticatedFlowStack = createNativeStackNavigator<RootStackParamList>();
 
@@ -25,9 +20,8 @@ function AuthenticatedStack() {
             <AuthenticatedFlowStack.Navigator screenOptions={{ headerShown: false }}>
                  <AuthenticatedFlowStack.Screen name="Home" component={Home} />
                  <AuthenticatedFlowStack.Screen name="Map" component={Map} options={{ headerShown: false }} />
-                 <AuthenticatedFlowStack.Screen name="Test" component={Test} options={{ headerShown: false }} />
-                 {/* <AuthenticatedFlowStack.Screen name="Camera" component={CameraModule} options={{ title: 'Take A Photo' }} /> */}
-                 <AuthenticatedFlowStack.Screen name="Test2" component={Test2} options={{ title: 'Another Test Page' }}/>
+                 <AuthenticatedFlowStack.Screen name="Camera" component={Camera} options={{ title: 'Take A Photo' }} />
+                 <AuthenticatedFlowStack.Screen name="MapEntries" component={MapEntries} options={{ title: 'Map Entries' }} />
             </AuthenticatedFlowStack.Navigator>
         </PointsProvider>
     );

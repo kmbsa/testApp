@@ -130,6 +130,18 @@ const Styles = StyleSheet.create({
     fontSize: 18,
     color: '#F4D03F',
   },
+   background: {
+        backgroundColor: '#F5F5DC',
+    },
+    header: {
+        backgroundColor: '#3D550C',
+    },
+    headerText: {
+        color: '#F4D03F',
+    },
+    itemBackground: {
+        backgroundColor: '#F9F9E0',
+    }
 });
 
 export default Styles;

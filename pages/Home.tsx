@@ -1,4 +1,4 @@
-import React from 'react'; // No need for useEffect, useState if using AuthContext state directly
+import React from 'react';
 
 import { View, Text, ActivityIndicator, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -7,16 +7,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Styles from '../styles/styles';
 
 import { useAuth } from '../context/AuthContext';
-
-type RootStackParamList = {
-  Login: undefined;
-  Test: undefined;
-  Home: undefined;
-  Map: any;
-  Camera: any;
-  Loading: undefined;
-};
-type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+import { RootStackNavigationProp, HomeScreenProps } from '../navigation/types';
 
 function Home() {
   const { userData, signOut, isLoading } = useAuth();
@@ -48,11 +39,12 @@ function Home() {
         Welcome, {userData?.first_name} {userData?.last_name}!
       </Text>
       <TouchableOpacity style={Styles.button}
-        onPress={() => navigation.navigate('Test')}>
+        onPress={() => navigation.navigate('Map')}>
         <Text style={Styles.buttonText}>Go to Map Page</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={Styles.button}>
+      <TouchableOpacity style={Styles.button}
+        onPress={() => navigation.navigate('MapEntries')}>
         <Text style={Styles.buttonText}>Go to Page 2</Text>
       </TouchableOpacity>
 

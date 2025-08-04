@@ -142,7 +142,7 @@ export const PhotoProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [4, 3],
-            quality: 0.7,
+            quality: 1,
             base64: true, 
         });
 
