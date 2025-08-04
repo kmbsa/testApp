@@ -433,15 +433,8 @@ export default function Map() {
             {!isComplete && (
                 <TouchableOpacity
                     style={[
-                        Styles.button,
+                        Styles.button, localStyles.openFormButton,
                         {
-                            position: 'absolute',
-                            bottom: 80,
-                            left: 20,
-                            right: 20,
-                            width: undefined,
-                            marginTop: 0,
-                            alignSelf: 'center',
                             opacity: (new Set(points.map(p => `${p.latitude},${p.longitude}`)).size >= 3) ? 1 : 0.5
                         },
                     ]}
@@ -457,7 +450,7 @@ export default function Map() {
                     Styles.button,
                     {
                         position: 'absolute',
-                        bottom: 30,
+                        bottom: 60,
                         left: 20,
                         right: 20,
                         width: undefined,
@@ -638,7 +631,7 @@ const localStyles = StyleSheet.create({
     },
     openFormButton: {
         position: 'absolute',
-        bottom: 130,
+        bottom: 120,
         left: 20,
         right: 20,
         width: undefined,
@@ -649,6 +642,7 @@ const localStyles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 1,
     },
+    
     photoButtonContainer: {
         flexDirection: 'row',
         justifyContent: 'space-around',

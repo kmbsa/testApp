@@ -9,7 +9,6 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { API_URL } from "@env";
-
 interface UserData {
   user_id: number;
   email: string;
