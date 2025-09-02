@@ -15,7 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useAuth } from '../context/AuthContext';
 import Styles from '../styles/styles';
 import { API_URL } from "@env";
-import { AreaEntry, RootStackNavigationProp } from '../navigation/types';
+import { AreaEntry, RootStackNavigationProp, RootStackParamList } from '../navigation/types';
 
 const localStyles = StyleSheet.create({
     safeArea: {

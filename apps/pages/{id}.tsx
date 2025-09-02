@@ -19,7 +19,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useAuth } from '../context/AuthContext';
 import Styles from '../styles/styles';
 import { API_URL } from "@env";
-import { AreaEntry, RootStackNavigationProp, AreaDetailsScreenProps } from '../navigation/types';
+import { AreaEntry, RootStackNavigationProp, MapPreviewProps } from '../navigation/types';
 import { BackendCoordinate, BackendPhoto } from '../navigation/types';
 
 const { width } = Dimensions.get('window');
@@ -146,8 +146,8 @@ const localStyles = StyleSheet.create({
 
 export default function AreaDetailsScreen() {
     const { userToken, signOut } = useAuth();
-    const navigation = useNavigation<RootStackNavigationProp>();
-    const route = useRoute<AreaDetailsScreenProps['route']>();
+    const navigation = useNavigation<MapPreviewProps['navigation']>();
+    const route = useRoute<MapPreviewProps['route']>();
     const insets = useSafeAreaInsets();
 
     const areaId = typeof route.params?.areaId === 'number'

@@ -9,7 +9,7 @@ import MapEntries from '../pages/MapEntries';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
-import AreaDetailsScreen from '../pages/{id}';
+import MapPreview from '../pages/{id}';
 
 const AuthenticatedFlowStack = createNativeStackNavigator<RootStackParamList>();
 
@@ -23,7 +23,7 @@ function AuthenticatedStack() {
                  <AuthenticatedFlowStack.Screen name="Map" component={Map} options={{ headerShown: false }} />
                  <AuthenticatedFlowStack.Screen name="Camera" component={Camera} options={{ title: 'Take A Photo' }} />
                  <AuthenticatedFlowStack.Screen name="MapEntries" component={MapEntries} options={{ title: 'Map Entries' }} />
-                 <AuthenticatedFlowStack.Screen name="MapPreview" component={AreaDetailsScreen} options={{ title: 'Map Preview' }} />
+                 <AuthenticatedFlowStack.Screen name="MapPreview" component={MapPreview} options={{ title: 'Map Preview' }} />
             </AuthenticatedFlowStack.Navigator>
         </PointsProvider>
     );

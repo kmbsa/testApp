@@ -45,10 +45,7 @@ export type RootStackParamList = {
     Camera: undefined;
     Loading: undefined;
     AuthenticatedStack: undefined;
-    MapPreview: undefined;
-    Test: { capturedPhotoUri?: string; capturedLocation?: Coordinate } | undefined;
-    Test2: undefined;
-    AreaDetails: { areaId: number };
+    MapPreview: {areaId: number} | undefined;
 };
 
 export type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -58,10 +55,8 @@ export type MapScreenProps = NativeStackScreenProps<RootStackParamList, 'Map'>;
 export type CameraScreenProps = NativeStackScreenProps<RootStackParamList, 'Camera'>;
 export type LoadingScreenProps = NativeStackScreenProps<RootStackParamList, 'Loading'>;
 export type AuthenticatedStackScreenProps = NativeStackScreenProps<RootStackParamList, 'AuthenticatedStack'>;
-export type TestScreenProps = NativeStackScreenProps<RootStackParamList, 'Test'>;
-export type Test2ScreenProps = NativeStackScreenProps<RootStackParamList, 'Test2'>;
 export type MapsEntriesProps = NativeStackScreenProps<RootStackParamList, 'MapEntries'>;
-export type AreaDetailsScreenProps = NativeStackScreenProps<RootStackParamList, 'AreaDetails'>;
+export type MapPreviewProps = NativeStackScreenProps<RootStackParamList, 'MapPreview'>;
 
 export type MapScreenRouteProp = MapScreenProps['route'];
 

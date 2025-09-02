@@ -45,7 +45,7 @@ function Home() {
 
       <TouchableOpacity style={Styles.button}
         onPress={() => navigation.navigate('MapEntries')}>
-        <Text style={Styles.buttonText}>Go to Page 2</Text>
+        <Text style={Styles.buttonText}>Go to Map Entries</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={Styles.button}>

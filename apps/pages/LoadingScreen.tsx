@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
-import Styles from '../styles/styles'; // Assuming you have a common styles file
+import Styles from '../styles/styles';
 
 function LoadingScreen() {
     return (
@@ -14,10 +14,8 @@ function LoadingScreen() {
 const localStyles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'center', // Center vertically
-        alignItems: 'center', // Center horizontally
-        // Optional: Add a specific background color for the loading screen
-        // backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });
 
