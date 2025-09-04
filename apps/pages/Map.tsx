@@ -56,6 +56,7 @@ export default function Map() {
     const [placeName, setPlaceName] = useState('');
     const [areaRegion, setAreaRegion] = useState('');
     const [areaProvince, setAreaProvince] = useState('');
+    const [areaOrganization, setAreaOrganization] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -189,6 +190,7 @@ export default function Map() {
                         setPlaceName('');
                         setAreaRegion('');
                         setAreaProvince('');
+                        setAreaOrganization('');
                         setUserLocation(null);
                         panY.setValue(0);
                     },
@@ -239,6 +241,7 @@ export default function Map() {
             name: placeName,
             region: areaRegion,
             province: areaProvince,
+            organization: areaOrganization,
             coordinates: points,
             photos: formPhotos.map(p => ({ base64: p.base64, mimeType: p.mimeType, filename: p.filename }))
         };
@@ -523,10 +526,20 @@ export default function Map() {
                                 <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
                                 <TextInput
                                     style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-                                    placeholder="Location Details"
+                                    placeholder="Enter Province Here"
                                     placeholderTextColor="#3D550C"
                                     value={areaProvince}
                                     onChangeText={setAreaProvince}
+                                    multiline={true}
+                                />
+
+                                <Text style={[Styles.text, localStyles.formLabels]}>Organization</Text>
+                                <TextInput
+                                    style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
+                                    placeholder="Enter Organization of Owner Here"
+                                    placeholderTextColor="#3D550C"
+                                    value={areaOrganization}
+                                    onChangeText={setAreaOrganization}
                                     multiline={true}
                                 />
 

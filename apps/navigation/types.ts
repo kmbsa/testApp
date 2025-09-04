@@ -20,6 +20,7 @@ export type AreaEntry = {
     Area_Name: string;
     Region?: string;
     Province?: string;
+    Organization: string;
     created_at: string;
     coordinates: BackendCoordinate[];
     images: BackendPhoto[];
