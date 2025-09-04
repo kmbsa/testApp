@@ -200,8 +200,8 @@ export default function Map() {
     };
 
     const handleCameraPress = async () => {
-        console.log(">>> Map: Navigating to Camera page ('Test2').");
-        navigation.navigate('Test2');
+        console.log(">>> Map: Navigating to Camera page ('Camera').");
+        navigation.navigate('Camera');
     };
 
     const handlePhotoLibraryPress = async () => {

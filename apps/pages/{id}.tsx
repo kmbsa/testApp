@@ -220,7 +220,8 @@ export default function AreaDetailsScreen() {
             if (data.area && data.area.images) {
                 console.log("Image Filepaths received:");
                 data.area.images.forEach((img: BackendPhoto, index: number) => {
-                    console.log(`Image ${index + 1} URL: ${img.Filepath}`);
+                    // This log has been updated to show the full URL that will be attempted
+                    console.log(`Image ${index + 1} URL: ${API_URL}/${img.Filepath}`);
                 });
             }
 
@@ -389,11 +390,12 @@ export default function AreaDetailsScreen() {
                                         return (
                                             <Image
                                                 key={image.Image_ID.toString()}
-                                                source={{ uri: image.Filepath }}
+                                                // Updated logic to use API_URL and Filepath
+                                                source={{ uri: `${API_URL}/${image.Filepath}` }}
                                                 style={localStyles.imageThumbnail}
                                                 // --- Enhanced onError logging ---
                                                 onError={(e) => {
-                                                    console.error('Image load error for URL:', image.Filepath, 'Error:', e.nativeEvent.error);
+                                                    console.error('Image load error for URL:', `${API_URL}/${image.Filepath}`, 'Error:', e.nativeEvent.error);
                                                 }}
                                             />
                                         );
