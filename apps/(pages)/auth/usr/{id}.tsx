@@ -16,133 +16,13 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-import { useAuth } from '../context/AuthContext';
-import Styles from '../styles/styles';
+import { useAuth } from '../../../context/AuthContext';
+import Styles from '../../../styles/styles';
 import { API_URL } from "@env";
-import { AreaEntry, RootStackNavigationProp, MapPreviewProps } from '../navigation/types';
-import { BackendCoordinate, BackendPhoto } from '../navigation/types';
+import { AreaEntry, RootStackNavigationProp, MapPreviewProps } from '../../../navigation/types';
+import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
 const { width } = Dimensions.get('window');
-
-const localStyles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: Styles.background.backgroundColor,
-    },
-    container: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 15,
-        paddingBottom: 10,
-    },
-    headerTitleContainer: {
-        flex: 1,
-        alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    title: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: Styles.text.color,
-    },
-    backButton: {
-        padding: 5,
-    },
-    map: {
-        flex: 1,
-        width: '100%',
-    },
-    detailsButtonContainer: {
-        position: 'absolute',
-        bottom: 20,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    detailsButton: {
-        backgroundColor: Styles.button.backgroundColor,
-        paddingVertical: 12,
-        paddingHorizontal: 30,
-        borderRadius: 25,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    detailsButtonText: {
-        color: Styles.buttonText.color,
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: Styles.background.backgroundColor,
-    },
-    errorText: {
-        color: 'red',
-        textAlign: 'center',
-        marginTop: 20,
-    },
-    modalContainer: {
-        flex: 1,
-        justifyContent: 'flex-end',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalContent: {
-        backgroundColor: Styles.formBox.backgroundColor,
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: 20,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: Styles.text.color,
-    },
-    modalText: {
-        fontSize: 16,
-        color: Styles.text.color,
-        marginBottom: 10,
-    },
-    imageGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        marginTop: 10,
-    },
-    imageThumbnail: {
-        width: (width - 60) / 3, // Roughly 3 images per row, considering padding and margin
-        height: (width - 60) / 3,
-        borderRadius: 8,
-        margin: 5,
-        resizeMode: 'cover',
-        backgroundColor: '#ccc', // Placeholder background
-    },
-    noImagesText: {
-        color: '#888',
-        textAlign: 'center',
-        marginTop: 10,
-    },
-    emptyText: {
-        color: '#888',
-        textAlign: 'center',
-        marginTop: 20,
-    }
-});
 
 export default function AreaDetailsScreen() {
     const { userToken, signOut } = useAuth();
@@ -411,3 +291,123 @@ export default function AreaDetailsScreen() {
         </View>
     );
 }
+
+const localStyles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+        backgroundColor: Styles.background.backgroundColor,
+    },
+    container: {
+        flex: 1,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 15,
+        paddingBottom: 10,
+    },
+    headerTitleContainer: {
+        flex: 1,
+        alignItems: 'center',
+        paddingHorizontal: 20,
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: Styles.text.color,
+    },
+    backButton: {
+        padding: 5,
+    },
+    map: {
+        flex: 1,
+        width: '100%',
+    },
+    detailsButtonContainer: {
+        position: 'absolute',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+    },
+    detailsButton: {
+        backgroundColor: Styles.button.backgroundColor,
+        paddingVertical: 12,
+        paddingHorizontal: 30,
+        borderRadius: 25,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    detailsButtonText: {
+        color: Styles.buttonText.color,
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: Styles.background.backgroundColor,
+    },
+    errorText: {
+        color: 'red',
+        textAlign: 'center',
+        marginTop: 20,
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalContent: {
+        backgroundColor: Styles.formBox.backgroundColor,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: Styles.text.color,
+    },
+    modalText: {
+        fontSize: 16,
+        color: Styles.text.color,
+        marginBottom: 10,
+    },
+    imageGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        marginTop: 10,
+    },
+    imageThumbnail: {
+        width: (width - 60) / 3, // Roughly 3 images per row, considering padding and margin
+        height: (width - 60) / 3,
+        borderRadius: 8,
+        margin: 5,
+        resizeMode: 'cover',
+        backgroundColor: '#ccc', // Placeholder background
+    },
+    noImagesText: {
+        color: '#888',
+        textAlign: 'center',
+        marginTop: 10,
+    },
+    emptyText: {
+        color: '#888',
+        textAlign: 'center',
+        marginTop: 20,
+    }
+});
