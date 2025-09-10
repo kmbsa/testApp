@@ -4,10 +4,10 @@ import { View, Text, ActivityIndicator, Alert, TouchableOpacity, StyleSheet } fr
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import Styles from '../styles/styles';
+import Styles from '../../../styles/styles';
 
-import { useAuth } from '../context/AuthContext';
-import { RootStackNavigationProp, HomeScreenProps } from '../navigation/types';
+import { useAuth } from '../../../context/AuthContext';
+import { RootStackNavigationProp, HomeScreenProps } from '../../../navigation/types';
 
 function Home() {
   const { userData, signOut, isLoading } = useAuth();

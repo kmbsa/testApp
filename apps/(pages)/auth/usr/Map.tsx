@@ -17,7 +17,7 @@ import {
     ActivityIndicator, // Import ActivityIndicator for loading state
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import Styles from '../styles/styles';
+import Styles from '../../../styles/styles';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -25,12 +25,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { RootStackNavigationProp, Coordinate } from '../navigation/types';
+import type { RootStackNavigationProp, Coordinate } from '../../../navigation/types';
 
-import { usePointsContext } from '../context/PointsContext';
-import { usePhotosContext } from '../context/PhotosContext';
+import { usePointsContext } from '../../../context/PointsContext';
+import { usePhotosContext } from '../../../context/PhotosContext';
 
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 import Constants from 'expo-constants';
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import Registration from '../pages/Register';
-import Login from '../pages/Login';
-import LoadingScreen from '../pages/LoadingScreen';
+import Registration from '../(pages)/Register';
+import Login from '../(pages)/Login';
+import LoadingScreen from '../(pages)/LoadingScreen';
 
 import AuthenticatedStack from './AuthenticatedStack';
 

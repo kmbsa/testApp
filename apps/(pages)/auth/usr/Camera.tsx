@@ -5,10 +5,10 @@ import { CameraView, useCameraPermissions, CameraType, CameraCapturedPicture } f
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import Styles from '../styles/styles';
-import { usePhotosContext } from '../context/PhotosContext';
+import Styles from '../../../styles/styles';
+import { usePhotosContext } from '../../../context/PhotosContext';
 
-import type { RootStackNavigationProp, CameraScreenProps } from '../navigation/types';
+import type { RootStackNavigationProp, CameraScreenProps } from '../../../navigation/types';
 import { useNavigation } from '@react-navigation/native';
 
 export default function PhotoCaptureScreen() {

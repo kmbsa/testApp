@@ -1,15 +1,15 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import Home from '../pages/Home';
-import Map from '../pages/Map';
-import Camera from '../pages/Camera';
-import MapEntries from '../pages/MapEntries';
+import Home from '../(pages)/auth/usr/Home';
+import Map from '../(pages)/auth/usr/Map';
+import Camera from '../(pages)/auth/usr/Camera';
+import MapEntries from '../(pages)/auth/usr/MapEntries';
 
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
-import MapPreview from '../pages/{id}';
+import MapPreview from '../(pages)/auth/usr/{id}';
 
 const AuthenticatedFlowStack = createNativeStackNavigator<RootStackParamList>();
 

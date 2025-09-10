@@ -12,10 +12,10 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useAuth } from '../context/AuthContext';
-import Styles from '../styles/styles';
+import { useAuth } from '../../../context/AuthContext';
+import Styles from '../../../styles/styles';
 import { API_URL } from "@env";
-import { AreaEntry, RootStackNavigationProp, RootStackParamList } from '../navigation/types';
+import { AreaEntry, RootStackNavigationProp, RootStackParamList } from '../../../navigation/types';
 
 const localStyles = StyleSheet.create({
     safeArea: {
