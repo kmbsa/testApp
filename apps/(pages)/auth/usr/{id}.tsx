@@ -18,11 +18,57 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
-import { API_URL } from "@env";
-import { AreaEntry, RootStackNavigationProp, MapPreviewProps } from '../../../navigation/types';
+import { API_URL, Weather_API_KEY } from "@env";
+import {
+    AreaEntry,
+    RootStackNavigationProp,
+    MapPreviewProps,
+    WeatherValues,
+    WeatherForecastResponse,
+    Coordinate
+} from '../../../navigation/types';
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
 const { width } = Dimensions.get('window');
+
+// Helper function to map Tomorrow.io weather codes to Ionicons
+const getWeatherIconName = (weatherCode: number): string => {
+    switch (weatherCode) {
+        case 1000:
+            return 'sunny-outline'; // Clear, Sunny
+        case 1100:
+            return 'partly-sunny-outline'; // Mostly Clear
+        case 1101:
+            return 'partly-sunny-outline'; // Partly Cloudy
+        case 1102:
+            return 'cloudy-outline'; // Mostly Cloudy
+        case 1001:
+            return 'cloudy-outline'; // Cloudy
+        case 2000:
+        case 2100:
+            return 'cloudy-outline'; // Fog
+        case 4000:
+        case 4200:
+            return 'rainy-outline'; // Drizzle, Light Rain
+        case 4201:
+            return 'rainy-outline'; // Heavy Rain
+        case 4001:
+            return 'rainy-outline'; // Rain
+        case 5000:
+        case 5100:
+        case 5101:
+            return 'snow-outline'; // Snow
+        case 6000:
+        case 6001:
+            return 'snow-outline'; // Freezing Rain
+        case 7000:
+        case 7100:
+        case 7101:
+            return 'thunderstorm-outline'; // Ice pellets, Thunderstorm
+        default:
+            return 'cloudy-outline';
+    }
+};
 
 export default function AreaDetailsScreen() {
     const { userToken, signOut } = useAuth();
@@ -40,6 +86,9 @@ export default function AreaDetailsScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
+    const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
+    const [isWeatherLoading, setIsWeatherLoading] = useState(false);
+    const [weatherError, setWeatherError] = useState<string | null>(null);
 
     const mapRef = useRef<MapView | null>(null);
 
@@ -124,6 +173,49 @@ export default function AreaDetailsScreen() {
             setIsLoading(false);
         }
     }, [areaId, userToken, signOut]);
+
+    const fetchCurrentWeather = useCallback(async (location: Coordinate) => {
+        setIsWeatherLoading(true);
+        setWeatherError(null);
+
+        if (!Weather_API_KEY) {
+            setWeatherError("Weather API Key is missing.");
+            setIsWeatherLoading(false);
+            return;
+        }
+
+        const url = `https://api.tomorrow.io/v4/weather/forecast?location=${location.latitude},${location.longitude}&units=metric&timesteps=1h&apikey=${Weather_API_KEY}`;
+        
+        try {
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to fetch weather data.');
+            }
+            
+            const data: WeatherForecastResponse = await response.json();
+            
+            if (data?.timelines?.hourly?.length > 0) {
+                setWeatherData(data.timelines.hourly[0].values);
+            }
+        } catch (err: any) {
+            console.error("Weather API Error:", err);
+            setWeatherError(err.message);
+        } finally {
+            setIsWeatherLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (modalVisible && areaData && areaData.coordinates.length > 0) {
+            const location = {
+                latitude: areaData.coordinates[0].Latitude,
+                longitude: areaData.coordinates[0].Longitude
+            };
+            fetchCurrentWeather(location);
+        }
+    }, [modalVisible, areaData, fetchCurrentWeather]);
 
     useFocusEffect(
         useCallback(() => {
@@ -256,11 +348,13 @@ export default function AreaDetailsScreen() {
                             </TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
+                            
+
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Region:</Text> {areaData.Region || 'N/A'}</Text>
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Province:</Text> {areaData.Province || 'N/A'}</Text>
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text> {areaData.coordinates.length}</Text>
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Submission Date:</Text> {new Date(areaData.created_at).toLocaleDateString()}</Text>
-                            
+
                             <Text style={[localStyles.modalText, { marginTop: 15, fontWeight: 'bold' }]}>Images:</Text>
                             {areaData.images && areaData.images.length > 0 ? (
                                 <View style={localStyles.imageGrid}>
@@ -284,6 +378,38 @@ export default function AreaDetailsScreen() {
                             ) : (
                                 <Text style={localStyles.noImagesText}>No images associated with this entry.</Text>
                             )}
+                            {/* Weather Section */}
+                            <View style={localStyles.weatherContainer}>
+                                {isWeatherLoading ? (
+                                    <ActivityIndicator size="small" color={Styles.button.backgroundColor} />
+                                ) : weatherError ? (
+                                    <Text style={localStyles.weatherErrorText}>Weather data not available.</Text>
+                                ) : weatherData ? (
+                                    <>
+                                        <View style={localStyles.weatherInfo}>
+                                            <Ionicons 
+                                                name={getWeatherIconName(weatherData.weatherCode)} 
+                                                size={50} 
+                                                color="#007BFF" 
+                                            />
+                                            <Text style={localStyles.weatherTemp}>{weatherData.temperature.toFixed(0)}°C</Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={localStyles.fullForecastButton}
+                                            onPress={() => {
+                                                const location = {
+                                                  latitude: areaData.coordinates[0].Latitude,
+                                                  longitude: areaData.coordinates[0].Longitude
+                                                };
+                                                navigation.navigate('WeatherPreview', { location });
+                                                setModalVisible(false);
+                                            }}
+                                        >
+                                            <Text style={localStyles.fullForecastText}>View Daily Forecast</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : null}
+                            </View>
                         </ScrollView>
                     </View>
                 </TouchableOpacity>
@@ -409,5 +535,40 @@ const localStyles = StyleSheet.create({
         color: '#888',
         textAlign: 'center',
         marginTop: 20,
+    },
+    weatherContainer: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        paddingVertical: 15,
+        borderTopWidth: 1,
+        borderTopColor: '#ddd',
+        marginTop: 50,
+    },
+    weatherInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    weatherTemp: {
+        fontSize: 48,
+        fontWeight: '200',
+        color: Styles.text.color,
+        marginLeft: 10,
+    },
+    weatherErrorText: {
+        color: '#d9534f',
+        textAlign: 'center',
+        fontSize: 14,
+    },
+    fullForecastButton: {
+        backgroundColor: '#007BFF',
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        borderRadius: 20,
+    },
+    fullForecastText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
     }
 });
