@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
 
 export type FormPhoto = {
     id: string;
-    uri: string; // The local file system URI (might be original or copied)
-    base64: string; // This will hold the actual base64 string
-    mimeType: string; // e.g., 'image/jpeg'
-    filename: string; // e.g., 'IMG_1234.jpg'
+    uri: string;
+    base64: string; 
+    mimeType: string;
+    filename: string;
 };
 
 interface PhotosContextType {
