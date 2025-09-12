@@ -23,10 +23,10 @@ import {
     AreaEntry,
     RootStackNavigationProp,
     MapPreviewProps,
-    WeatherValues,
-    WeatherForecastResponse,
     Coordinate
 } from '../../../navigation/types';
+import { WeatherValues, WeatherForecastResponse } from './Weather';
+
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
 const { width } = Dimensions.get('window');

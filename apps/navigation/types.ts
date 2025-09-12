@@ -37,42 +37,6 @@ export type BackendPhoto = {
     Filepath: string; 
 };
 
-export interface WeatherProps {
-    isVisible: boolean;
-    onClose: () => void;
-    location: Coordinate;
-}
-
-export interface WeatherValues {
-    weatherCode: number;
-    temperature: number;
-    precipitationIntensity: number;
-    humidity: number;
-    windSpeed: number;
-    windDirection: number;
-    pressureSurfaceLevel: number;
-}
-
-export interface WeatherDataPoint {
-    time: string;
-    values: WeatherValues;
-}
-
-export interface Timelines {
-    hourly: WeatherDataPoint[];
-    daily: WeatherDataPoint[];
-}
-
-export interface WeatherForecastResponse {
-    timelines: Timelines;
-    location: {
-        lat: number;
-        lon: number;
-        name: string;
-        type: string;
-    };
-}
-
 export type RootStackParamList = {
     Login: undefined;
     Home: undefined;

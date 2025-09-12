@@ -12,11 +12,47 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Styles from '../../../styles/styles';
 
-import { WeatherDataPoint, WeatherForecastResponse, WeatherPreviewPropts, WeatherValues} from "../../../navigation/types";
+import { Coordinate, WeatherPreviewPropts } from '../../../navigation/types';
+
 import { Weather_API_KEY } from '@env';
 
 const { width } = Dimensions.get('window');
 
+export interface WeatherProps {
+    isVisible: boolean;
+    onClose: () => void;
+    location: Coordinate;
+}
+
+export interface WeatherValues {
+    weatherCode: number;
+    temperature: number;
+    precipitationIntensity: number;
+    humidity: number;
+    windSpeed: number;
+    windDirection: number;
+    pressureSurfaceLevel: number;
+}
+
+export interface WeatherDataPoint {
+    time: string;
+    values: WeatherValues;
+}
+
+interface Timelines {
+    hourly: WeatherDataPoint[];
+    daily: WeatherDataPoint[];
+}
+
+export interface WeatherForecastResponse {
+    timelines: Timelines;
+    location: {
+        lat: number;
+        lon: number;
+        name: string;
+        type: string;
+    };
+}
 // A simple line graph component
 interface LineGraphProps {
     data: WeatherDataPoint[];
