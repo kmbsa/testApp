@@ -19,16 +19,7 @@ import Styles from '../styles/styles';
 
 import { useAuth } from '../context/AuthContext';
 
-type RootStackParamList = {
-    Login: undefined;
-    Home: undefined;
-    Registration: undefined;
-    Map: any;
-    Camera: any;
-    Loading: undefined;
-};
-
-type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
+import {LoginScreenProps, RootStackNavigationProp} from '../navigation/types';
 
 function Login() {
     const [emailOrUsername, setEmailOrUsername] = useState('');
@@ -36,7 +27,7 @@ function Login() {
 
     const { signIn, isSigningIn, error } = useAuth();
 
-    const navigation = useNavigation<LoginScreenProps['navigation']>();
+    const navigation = useNavigation<RootStackNavigationProp>();
 
     const handleLogin = async () => {
         if (!emailOrUsername || !password) {

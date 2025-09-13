@@ -25,6 +25,7 @@ import {
     MapPreviewProps,
     Coordinate
 } from '../../../navigation/types';
+
 import { WeatherValues, WeatherForecastResponse } from './Weather';
 
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';

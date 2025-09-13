@@ -5,9 +5,9 @@ import Home from '../(pages)/auth/usr/Home';
 import Map from '../(pages)/auth/usr/Map';
 import Camera from '../(pages)/auth/usr/Camera';
 import MapEntries from '../(pages)/auth/usr/MapEntries';
-import MapPreview from '../(pages)/auth/usr/{id}';
+import MapPreview from '../(pages)/auth/usr/[id]';
 import Weather from '../(pages)/auth/usr/Weather';
-
+import Test from '../(pages)/auth/tst/Test';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -27,6 +27,7 @@ function AuthenticatedStack() {
                 <AuthenticatedFlowStack.Screen name="MapEntries" component={MapEntries} options={{ title: 'Map Entries' }} />
                 <AuthenticatedFlowStack.Screen name="MapPreview" component={MapPreview} options={{ title: 'Map Preview' }} />
                 <AuthenticatedFlowStack.Screen name="WeatherPreview" component={Weather} options={{ title: 'Weather' }} />
+                <AuthenticatedFlowStack.Screen name="Test" component={Test} options={{ title: 'Test'}}/>
             </AuthenticatedFlowStack.Navigator>
         </PointsProvider>
     );

@@ -48,6 +48,8 @@ export type RootStackParamList = {
     AuthenticatedStack: undefined;
     MapPreview: {areaId: number} | undefined;
     WeatherPreview: {location: Coordinate} | undefined;
+    AuthTabs: undefined
+    Test: undefined;
 };
 
 export type LoginScreenProps = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -59,7 +61,10 @@ export type LoadingScreenProps = NativeStackScreenProps<RootStackParamList, 'Loa
 export type AuthenticatedStackScreenProps = NativeStackScreenProps<RootStackParamList, 'AuthenticatedStack'>;
 export type MapsEntriesProps = NativeStackScreenProps<RootStackParamList, 'MapEntries'>;
 export type MapPreviewProps = NativeStackScreenProps<RootStackParamList, 'MapPreview'>;
-export type WeatherPreviewPropts = NativeStackScreenProps<RootStackParamList, 'WeatherPreview'>;
+export type WeatherPreviewProps = NativeStackScreenProps<RootStackParamList, 'WeatherPreview'>;
+export type TestScreenProps = NativeStackNavigationProp<RootStackParamList, 'Test'>;
+export type AuthTabsProps = NativeStackNavigationProp<RootStackParamList, 'AuthTabs'>;
+
 
 export type MapScreenRouteProp = MapScreenProps['route'];
 

@@ -10,9 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
 import Styles from '../../../styles/styles';
 
-import { Coordinate, WeatherPreviewPropts } from '../../../navigation/types';
+import { Coordinate, WeatherPreviewProps } from '../../../navigation/types';
 
 import { Weather_API_KEY } from '@env';
 
@@ -27,7 +28,7 @@ export interface WeatherProps {
 export interface WeatherValues {
     weatherCode: number;
     temperature: number;
-    precipitationIntensity: number;
+    temperatureApparent: number;
     humidity: number;
     windSpeed: number;
     windDirection: number;
@@ -61,7 +62,6 @@ interface LineGraphProps {
 const LineGraph = ({ data }: LineGraphProps) => {
     if (data.length === 0) return null;
 
-    // Filter out any data points without a temperature value
     const validData = data.filter(d => d.values?.temperature != null);
     if (validData.length === 0) return null;
 
@@ -71,7 +71,6 @@ const LineGraph = ({ data }: LineGraphProps) => {
     const tempRange = maxTemp - minTemp;
     const graphHeight = 150;
 
-    // Calculate position for each data point
     const points = validData.map((d, index) => {
         const temp = d.values.temperature;
         const yPos = tempRange > 0 ? (temp - minTemp) / tempRange : 0;
@@ -81,7 +80,6 @@ const LineGraph = ({ data }: LineGraphProps) => {
 
     return (
         <View style={localStyles.chartContainer}>
-            {/* Render the lines connecting the points */}
             {points.length > 1 && points.slice(0, points.length - 1).map((point, index) => {
                 const nextPoint = points[index + 1];
                 const dx = nextPoint.x - point.x;
@@ -120,7 +118,7 @@ const LineGraph = ({ data }: LineGraphProps) => {
 };
 
 // Main weather screen component
-export default function Weather({ route, navigation }: WeatherPreviewPropts) {
+export default function Weather({ route, navigation }: WeatherPreviewProps) {
     const [currentWeather, setCurrentWeather] = useState<WeatherValues | null>(null);
     const [dailyForecast, setDailyForecast] = useState<WeatherDataPoint[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -143,36 +141,28 @@ export default function Weather({ route, navigation }: WeatherPreviewPropts) {
 
         const [latitude, longitude] = [location.latitude, location.longitude];
         const fields = [
-            "temperature", "precipitationIntensity", "humidity",
+            "temperature", "temparatureApparent", "humidity",
             "windSpeed", "windDirection", "pressureSurfaceLevel"
         ];
 
         try {
             const url = `${baseUrl}?location=${latitude},${longitude}&units=metric&timesteps=1d,1h&fields=${fields.join(',')}&apikey=${apiKey}`;
-            const response = await fetch(url);
+            const response = await axios.get<WeatherForecastResponse>(url);
             
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch weather data.');
-            }
-            
-            const data: WeatherForecastResponse = await response.json();
+            const data: WeatherForecastResponse = response.data;
             
             const dailyData = data?.timelines?.daily || [];
             const hourlyData = data?.timelines?.hourly || [];
 
-            // Get current and next 5 days of daily data based on API limitations
-            // The API returns the data in a non-intuitive order, slicing this way is a workaround.
             const next6Days = dailyData.slice(0, 6);
             setDailyForecast(next6Days);
 
-            // Get current weather from the first hourly entry
             if (hourlyData.length > 0) {
                 setCurrentWeather(hourlyData[0].values);
             }
         } catch (err: any) {
             console.error("Weather API Error:", err);
-            setError(err.message);
+            setError(err.response?.data?.message || err.message || 'Failed to fetch weather data.');
         } finally {
             setIsLoading(false);
         }
@@ -212,8 +202,8 @@ export default function Weather({ route, navigation }: WeatherPreviewPropts) {
                                 <Text style={[localStyles.detailHeader, { color: Styles.headerText.color }]}>Current Conditions</Text>
                                 <View style={localStyles.detailsGrid}>
                                     <View style={localStyles.detailItem}>
-                                        <Text style={localStyles.detailLabel}>Precipitation</Text>
-                                        <Text style={localStyles.detailValue}>{currentWeather.precipitationIntensity?.toFixed(1) ?? 'N/A'} mm/h</Text>
+                                        <Text style={localStyles.detailLabel}>Temperature Apparent</Text>
+                                        <Text style={localStyles.detailValue}>{currentWeather.temperatureApparent?.toFixed(1) ?? 'N/A'} °C</Text>
                                     </View>
                                     <View style={localStyles.detailItem}>
                                         <Text style={localStyles.detailLabel}>Humidity</Text>
@@ -247,8 +237,10 @@ export default function Weather({ route, navigation }: WeatherPreviewPropts) {
                         {!isLoading && !error && !currentWeather && (
                             <Text style={localStyles.noDataText}>No weather data available for this location.</Text>
                         )}
-                        <Text style={[localStyles.detailHeader, { color: Styles.headerText.color, alignItems: 'center' }]}>Temperature Trend</Text>
-                                {dailyForecast.length > 0 && <LineGraph data={dailyForecast} />}
+                        <View style={[localStyles.weatherSummary, localStyles.detailsContainer, { alignItems: 'center' }]}>
+                            <Text style={[localStyles.detailHeader, { color: Styles.headerText.color }]}>Temperature Trend</Text>
+                            {dailyForecast.length > 0 && <LineGraph data={dailyForecast} />}
+                        </View>
                     </View>
                 )}
             </ScrollView>
@@ -368,9 +360,6 @@ const localStyles = StyleSheet.create({
     chartContainer: {
         height: 180,
         marginTop: 10,
-        padding: 20,
-        backgroundColor: Styles.itemBackground.backgroundColor,
-        borderRadius: 10,
         position: 'relative',
     },
     line: {

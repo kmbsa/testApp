@@ -1,728 +1,276 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import {
-    Platform,
-    View,
-    TextInput,
-    Modal,
-    Text,
-    TouchableWithoutFeedback,
-    Keyboard,
-    TouchableOpacity,
-    Alert,
-    StyleSheet,
-    Image,
-    ScrollView,
-    PanResponder,
-    Animated,
-    ActivityIndicator, // Import ActivityIndicator for loading state
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  SafeAreaView, 
+  TouchableOpacity,
+  ActivityIndicator
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import Styles from '../styles/styles';
-import EvilIcons from 'react-native-vector-icons/EvilIcons';
-import * as Location from 'expo-location';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { RootStackNavigationProp, Coordinate } from '../navigation/types';
+// Import the API key from the environment variable.
+// This requires a library like 'react-native-dotenv' to be configured.
+// Make sure to have a .env file with a key named Weather_API_KEY.
+import { Weather_API_KEY } from '@env';
 
-import { usePointsContext } from '../context/PointsContext';
-import { usePhotosContext } from '../context/PhotosContext';
-
-import { useAuth } from '../context/AuthContext';
-
-import Constants from 'expo-constants';
-
-import { API_URL } from "@env";
-
-const isCoordinateInArray = (coordinate: { latitude: number; longitude: number }, array: { latitude: number; longitude: number }[], epsilon = 0.00001): boolean => {
-    return array.some(point =>
-        Math.abs(point.latitude - coordinate.latitude) < epsilon &&
-        Math.abs(point.longitude - coordinate.longitude) < epsilon
-    );
+// Type definitions for the weather data structure
+type WeatherData = {
+  temperature: number;
+  precipitationProbability: number;
+  humidity: number;
+  windSpeed: number;
 };
 
-export default function Map() {
-    const navigation = useNavigation<RootStackNavigationProp>();
+type ErrorType = string | null;
 
-    const { points, redoStack, isComplete, addPoint, resetPoints, undoPoint, redoPoint, setIsComplete, closePolygon } = usePointsContext();
-    const { formPhotos, addFormPhoto, removeFormPhoto, clearFormPhotos, pickImageFromLibrary } = usePhotosContext();
+// Main App component that fetches and displays weather data.
+const App = () => {
+  // State for storing the single weather data object.
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  // State for managing the loading status.
+  const [loading, setLoading] = useState(true);
+  // State for handling and displaying any errors.
+  const [error, setError] = useState<ErrorType>(null);
 
-    const mapRef = useRef<MapView | null>(null);
-    const [mapLoaded, setMapLoaded] = useState(false);
+  // The API key is now imported from the environment
+  const API_KEY = Weather_API_KEY;
 
-    const [modalVisible, setModalVisible] = useState(false);
-    const [placeName, setPlaceName] = useState('');
-    const [areaRegion, setAreaRegion] = useState('');
-    const [areaProvince, setAreaProvince] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+  // Function to fetch the weather data for the current moment.
+  const fetchWeather = async (latitude: number, longitude: number) => {
+    // The API endpoint for the timelines.
+    const endpoint = 'https://api.tomorrow.io/v4/timelines';
 
-    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-
-    const { userToken, userData, signOut } = useAuth(); 
-
-    const panY = useRef(new Animated.Value(0)).current;
-    const initialModalHeight = useRef(0);
-
-    useFocusEffect(
-        useCallback(() => {
-            return () => {
-                if (modalVisible) {
-                    setModalVisible(false);
-                }
-                panY.setValue(0);
-            };
-        }, [modalVisible, panY])
-    );
-
-    useEffect(() => {
-        console.log('### FINAL Map Points state changed (from Context):', points);
-    }, [points]);
-
-    const handleMapReady = () => {
-        setMapLoaded(true);
-        if (mapRef.current && points.length === 0) {
-            console.log(">>> Map: Map ready, points empty. Fitting to default bounds.");
-            mapRef.current.fitToCoordinates([{ latitude: 5.0, longitude: 115.0 }, { latitude: 19.0, longitude: 127.0 },], { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true });
-        } else if (mapRef.current && points.length > 0) {
-            console.log(`>>> Map: Map ready, ${points.length} points exist (from context). Fitting to points.`);
-            mapRef.current.fitToCoordinates(points, { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true });
-        }
+    // The data to be sent in the POST request.
+    const requestBody = {
+      location: {
+        lat: latitude,
+        lon: longitude
+      },
+      fields: [
+        "temperature",
+        "humidity",
+        "windSpeed"
+      ],
+      units: "metric",
+      timesteps: ["1d"],
+      timezone: "auto"
     };
 
-    const handleMapPress = (event: any) => {
-        if (isComplete) { console.log(">>> Map: Map press ignored: shape is complete."); return; }
-        const newCoord = event.nativeEvent.coordinate;
-        const newPoint: Coordinate = { latitude: newCoord.latitude, longitude: newCoord.longitude };
-        console.log(">>> Map: Adding new map press point via context.");
-        addPoint(newPoint);
-    };
-
-    const handleMarkerPress = (index: number) => {
-        if (isComplete) {
-            const tappedPoint = points[index];
-            console.log(">>> Map: Tapped marker on completed shape:", tappedPoint);
-            Alert.alert("Point Details", `Lat: ${tappedPoint.latitude.toFixed(4)}, Lng: ${tappedPoint.longitude.toFixed(4)}`);
-            return;
-        }
-
-        if (points.length > 1 && index === 0) {
-            console.log(">>> Map: Tapped first marker to complete shape. Calling context.closePolygon()");
-            closePolygon();
-        } else {
-            console.log(`>>> Map: Tapped marker at index ${index} while plotting.`);
-        }
-    };
-
-    const handleUndo = () => {
-        if (isComplete) return;
-        undoPoint();
-    };
-
-    const handleRedo = () => {
-        if (isComplete) return;
-        redoPoint();
-    };
-
-    const getCurrentUserLocation = async () => {
-        if (isComplete) { Alert.alert("Shape Already Completed", "Cannot add location points after completing the shape."); return; }
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') { Alert.alert('Location Permission Denied', 'Please enable location services to mark your current location.', [{ text: 'OK' }]); return; }
-        let location = await Location.getCurrentPositionAsync({});
-        const userCoordinate: Coordinate = { latitude: location.coords.latitude, longitude: location.coords.longitude };
-
-        setUserLocation(userCoordinate);
-
-        console.log(">>> Map: Adding new user location point via context.");
-        addPoint(userCoordinate);
-        mapRef.current?.animateToRegion({
-            latitude: userCoordinate.latitude,
-            longitude: userCoordinate.longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-        });
-    };
-
-    const handleCompletePlotting = () => {
-        if (isComplete) { Alert.alert("Shape Already Completed", "You have already finished plotting points."); return; }
-        const uniquePointsCount = new Set(points.map(p => `${p.latitude},${p.longitude}`)).size;
-        if (uniquePointsCount < 3) { Alert.alert("Not Enough Points", "Please add at least 3 unique points before completing the shape."); return; }
-
-        console.log(">>> Map: Completing shape via button press. Calling context.closePolygon()");
-        closePolygon();
-
-        Alert.alert(
-            "Shape Completed",
-            "Your polygon has been drawn. You can now fill out the form for this area.",
-            [{
-                text: "OK", onPress: () => {
-                    setModalVisible(true);
-                    panY.setValue(0);
-                }
-            }]
-        );
-    };
-
-    const handleOpenForm = () => {
-        if (!isComplete) {
-            Alert.alert("Shape Not Complete", "Please complete plotting the shape before filling out the form.");
-            return;
-        }
-        setModalVisible(true);
-        panY.setValue(0);
-    };
-
-    const handleClearMap = () => {
-        Alert.alert(
-            "Clear Map",
-            "Are you sure you want to clear all plotted points and clear all attached photos?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Clear",
-                    onPress: () => {
-                        console.log(">>> Map: Clearing map via context resetPoints.");
-                        resetPoints();
-                        clearFormPhotos();
-                        setModalVisible(false);
-                        setPlaceName('');
-                        setAreaRegion('');
-                        setAreaProvince('');
-                        setUserLocation(null);
-                        panY.setValue(0);
-                    },
-                    style: "destructive",
-                },
-            ],
-            { cancelable: true }
-        );
-    };
-
-    const handleCameraPress = async () => {
-        console.log(">>> Map: Navigating to Camera page ('Camera').");
-        navigation.navigate('Camera');
-    };
-
-    const handlePhotoLibraryPress = async () => {
-        console.log(">>> Map: Picking image from library.");
-        await pickImageFromLibrary();
-    };
-
-    const handleSubmitForm = async () => {
-        if (isSubmitting) return;
-
-        // Basic validation
-        if (!placeName.trim() || !areaRegion.trim() || !areaProvince.trim()) {
-            Alert.alert("Missing Information", "Please fill in all required form fields (Area Name, Region, Province).");
-            return;
-        }
-
-        const currentUserId = userData?.user_id;
-        if (!currentUserId) {
-            Alert.alert("Authentication Error", "User ID not found. Please log in again.");
-
-            await signOut();
-            return;
-        }
-
-        if (!API_URL) {
-            Alert.alert("Configuration Error", "API_URL environment variable is not set.");
-            console.error("API_URL is undefined!");
-            return;
-        }
-
-        setIsSubmitting(true);
-
-        const areaData = {
-            user_id: currentUserId,
-            name: placeName,
-            region: areaRegion,
-            province: areaProvince,
-            coordinates: points,
-            photos: formPhotos.map(p => ({ base64: p.base64, mimeType: p.mimeType, filename: p.filename }))
-        };
-
-        console.log("Attempting to submit data:", JSON.stringify(areaData, null, 2));
-
-        try {
-            const response = await fetch(`${API_URL}/area`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`
-                },
-                body: JSON.stringify(areaData),
-            });
-
-            if (response.status === 401 || response.status === 403) {
-                Alert.alert("Session Expired", "Your session has expired. Please log in again.");
-                await signOut();
-                return;
-            }
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error("Server error:", response.status, errorText);
-                Alert.alert("Submission Failed", `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`);
-                return;
-            }
-
-            const responseData = await response.json();
-            console.log("Server response:", responseData);
-            Alert.alert("Success!", "Area details submitted successfully.");
-
-            resetPoints();
-            clearFormPhotos();
-            setPlaceName('');
-            setAreaRegion('');
-            setAreaProvince('');
-            setModalVisible(false);
-            panY.setValue(0);
-            setUserLocation(null);
-
-        } catch (error) {
-            console.error("Network or submission error:", error);
-            Alert.alert("Error", `Could not connect to the server or submit data. Please check your network connection.\nDetails: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onPanResponderMove: (event, gestureState) => {
-                if (gestureState.dy > 0) {
-                    panY.setValue(gestureState.dy);
-                }
-            },
-            onPanResponderRelease: (event, gestureState) => {
-                if (gestureState.dy > initialModalHeight.current * 0.3 || gestureState.vy > 0.5) {
-                    Animated.timing(panY, {
-                        toValue: initialModalHeight.current,
-                        duration: 300,
-                        useNativeDriver: true,
-                    }).start(() => {
-                        setModalVisible(false);
-                        panY.setValue(0);
-                    });
-                } else {
-                    Animated.spring(panY, {
-                        toValue: 0,
-                        useNativeDriver: true,
-                    }).start();
-                }
-            },
-        })
-    ).current;
-
-    return (
-        <SafeAreaView style={{ flex: 1 }}>
-            <MapView
-                ref={mapRef}
-                provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-                style={{ flex: 1 }}
-                onMapReady={handleMapReady}
-                onPress={handleMapPress}
-                initialRegion={{
-                    latitude: 12.8797,
-                    longitude: 121.7740,
-                    latitudeDelta: 10.0,
-                    longitudeDelta: 10.0,
-                }}
-            >
-                {points.map((point, index) => (
-                    <Marker
-                        key={`marker-${index}`}
-                        coordinate={point}
-                        onPress={() => handleMarkerPress(index)}
-                        pinColor={Platform.OS !== 'ios' ? 'red' : undefined}
-                    >
-                        {Platform.OS === 'ios' && (
-                            <View style={localStyles.defaultMarker}>
-                                <MaterialCommunityIcons name="map-marker" size={isComplete ? 25 : 30} color={isComplete ? "darkred" : "red"} />
-                            </View>
-                        )}
-                    </Marker>
-                ))}
-
-                {userLocation && !isCoordinateInArray(userLocation, points.map(p => ({ latitude: p.latitude, longitude: p.longitude }))) && (
-                    <Marker
-                        key="user-location-marker"
-                        coordinate={userLocation}
-                        title="My Location"
-                        pinColor={Platform.OS !== 'ios' ? 'blue' : undefined}
-                    >
-                        {Platform.OS === 'ios' && (
-                            <MaterialCommunityIcons name="crosshairs-gps" size={30} color="blue" />
-                        )}
-                    </Marker>
-                )}
-
-                {points.length > 1 && (
-                    <Polyline coordinates={points} strokeWidth={3} strokeColor="blue" />
-                )}
-            </MapView>
-
-            <SafeAreaView style={localStyles.backButtonContainer}>
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('Home')}
-                    style={localStyles.backButton}
-                >
-                    <Ionicons name="chevron-back" size={30} color={Styles.buttonText.color} />
-                </TouchableOpacity>
-            </SafeAreaView>
-
-            <SafeAreaView style={localStyles.undoRedoClearContainer}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity
-                        onPress={handleClearMap}
-                        disabled={points.length === 0 && formPhotos.length === 0}
-                        style={[
-                            localStyles.clearButton,
-                            {
-                                backgroundColor: (points.length > 0 || formPhotos.length > 0) ? Styles.button.backgroundColor : Styles.inputFields.backgroundColor,
-                                padding: 8,
-                                borderRadius: 20,
-                            },
-                        ]}
-                    >
-                        <Ionicons name="trash-outline" size={30} color={(points.length > 0 || formPhotos.length > 0) ? 'black' : 'grey'} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        onPress={handleUndo}
-                        disabled={points.length === 0 || isComplete}
-                        style={{
-                            backgroundColor: (points.length > 0 && !isComplete) ? Styles.button.backgroundColor : Styles.inputFields.backgroundColor,
-                            padding: 8,
-                            borderRadius: 20,
-                            marginRight: 10
-                        }}
-                    >
-                        <EvilIcons name="undo" size={30} color={(points.length > 0 && !isComplete) ? 'black' : 'grey'} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        onPress={handleRedo}
-                        disabled={redoStack.length === 0 || isComplete}
-                        style={{
-                            backgroundColor: (redoStack.length > 0 && !isComplete) ? Styles.button.backgroundColor : Styles.inputFields.backgroundColor,
-                            padding: 8,
-                            borderRadius: 20
-                        }}
-                    >
-                        <EvilIcons name="redo" size={30} color={(redoStack.length > 0 && !isComplete) ? 'black' : 'grey'} />
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-
-            {/* Forms Button after completing */}
-            {isComplete && (
-                <TouchableOpacity
-                    style={[Styles.button, localStyles.openFormButton]}
-                    onPress={handleOpenForm}
-                >
-                    <Ionicons name="document-text-outline" size={24} color={Styles.buttonText.color} style={{ marginRight: 5 }} />
-                    <Text style={Styles.buttonText}>Open Form</Text>
-                </TouchableOpacity>
-            )}
-
-
-            {!isComplete && (
-                <TouchableOpacity
-                    style={[
-                        Styles.button, localStyles.openFormButton,
-                        {
-                            opacity: (new Set(points.map(p => `${p.latitude},${p.longitude}`)).size >= 3) ? 1 : 0.5
-                        },
-                    ]}
-                    onPress={handleCompletePlotting}
-                    disabled={new Set(points.map(p => `${p.latitude},${p.longitude}`)).size < 3}
-                >
-                    <Text style={Styles.buttonText}>Complete Shape</Text>
-                </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-                style={[
-                    Styles.button,
-                    {
-                        position: 'absolute',
-                        bottom: 60,
-                        left: 20,
-                        right: 20,
-                        width: undefined,
-                        marginTop: 0,
-                        alignSelf: 'center',
-                        opacity: isComplete ? 0.5 : 1
-                    },
-                ]}
-                onPress={getCurrentUserLocation}
-                disabled={isComplete}
-            >
-                <Text style={Styles.buttonText}>Mark My Location</Text>
-            </TouchableOpacity>
-
-            <Modal
-                visible={modalVisible}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                    <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-                        <Animated.View
-                            style={[
-                                Styles.formBox,
-                                {
-                                    width: '100%',
-                                    minHeight: '60%',
-                                    borderTopLeftRadius: 20,
-                                    borderTopRightRadius: 20,
-                                    paddingHorizontal: 20,
-                                    paddingVertical: 20,
-                                    transform: [{ translateY: panY }],
-                                },
-                            ]}
-                            onLayout={(event) => {
-                                if (initialModalHeight.current === 0) {
-                                    initialModalHeight.current = event.nativeEvent.layout.height;
-                                }
-                            }}
-                        >
-                            {/* Draggable indicator/header */}
-                            <View
-                                style={localStyles.modalHandle}
-                                {...panResponder.panHandlers}
-                            >
-                                <View style={localStyles.modalHandleBar} />
-                            </View>
-
-                            <ScrollView keyboardShouldPersistTaps="handled">
-                                <Text style={[Styles.text, { marginBottom: 15, textAlign: 'center', fontSize: 18, fontWeight: 'bold' }]}>Enter Location Details</Text>
-                                <Text style={[Styles.text, localStyles.formLabels]}>Area Name</Text>
-                                <TextInput
-                                    style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
-                                    placeholder="Place Name"
-                                    placeholderTextColor="#3D550C"
-                                    value={placeName}
-                                    onChangeText={setPlaceName}
-                                />
-                                <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
-                                <TextInput
-                                    style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-                                    placeholder="Location Details"
-                                    placeholderTextColor="#3D550C"
-                                    value={areaRegion}
-                                    onChangeText={setAreaRegion}
-                                    multiline={true}
-                                />
-
-                                <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
-                                <TextInput
-                                    style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-                                    placeholder="Location Details"
-                                    placeholderTextColor="#3D550C"
-                                    value={areaProvince}
-                                    onChangeText={setAreaProvince}
-                                    multiline={true}
-                                />
-
-                                {/* Photo Attachment Section */}
-                                <Text style={[Styles.text, localStyles.formLabels, { marginBottom: 10 }]}>Attach Photos</Text>
-                                <View style={localStyles.photoButtonContainer}>
-                                    <TouchableOpacity
-                                        style={[Styles.button, localStyles.smallPhotoButton]}
-                                        onPress={handleCameraPress}
-                                    >
-                                        <Ionicons name="camera-outline" size={20} color={Styles.buttonText.color} style={{ marginRight: 5 }} />
-                                        <Text style={Styles.buttonText}>Take Photo</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[Styles.button, localStyles.smallPhotoButton]}
-                                        onPress={handlePhotoLibraryPress}
-                                    >
-                                        <Ionicons name="image-outline" size={20} color={Styles.buttonText.color} style={{ marginRight: 5 }} />
-                                        <Text style={Styles.buttonText}>From Library</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {formPhotos.length > 0 ? (
-                                    <View style={localStyles.photoPreviewGrid}>
-                                        {formPhotos.map(photo => (
-                                            <View key={photo.id} style={localStyles.photoThumbnailContainer}>
-                                                <Image
-                                                    source={{ uri: photo.uri }}
-                                                    style={localStyles.photoThumbnail}
-                                                />
-                                                <TouchableOpacity
-                                                    style={localStyles.deletePhotoButton}
-                                                    onPress={() => removeFormPhoto(photo.id)}
-                                                >
-                                                    <Ionicons name="close-circle" size={24} color="red" />
-                                                </TouchableOpacity>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ) : (
-                                    <Text style={[Styles.text, { color: '#888', marginBottom: 20, textAlign: 'center' }]}>No photos attached yet.</Text>
-                                )}
-
-                                <TouchableOpacity
-                                    style={[Styles.button, { width: '100%' }]}
-                                    onPress={handleSubmitForm}
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting ? (
-                                        <ActivityIndicator color={Styles.buttonText.color} />
-                                    ) : (
-                                        <Text style={Styles.buttonText}>Submit</Text>
-                                    )}
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={{ marginTop: 10 }}
-                                    onPress={() => {
-                                        setModalVisible(false);
-                                        panY.setValue(0);
-                                    }}
-                                    disabled={isSubmitting} 
-                                >
-                                    <View style={{ justifyContent: 'center' }}>
-                                        <Text style={[Styles.text, { color: '#555', textAlign: 'center' }]}>Cancel</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </ScrollView>
-                        </Animated.View>
-                    </View>
-                </TouchableWithoutFeedback>
-            </Modal>
-        </SafeAreaView>
-    );
-}
-
-const localStyles = StyleSheet.create({
-    backButtonContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        zIndex: 1,
-        paddingTop: 10,
-        paddingLeft: 10,
-    },
-    backButton: {
-        backgroundColor: Styles.button.backgroundColor,
-        padding: 8,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    undoRedoClearContainer: {
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        zIndex: 1,
-        paddingTop: 10,
-        paddingRight: 10,
-    },
-    clearButton: {
-        marginRight: 10,
-    },
-    openFormButton: {
-        position: 'absolute',
-        bottom: 120,
-        left: 20,
-        right: 20,
-        width: undefined,
-        marginTop: 0,
-        alignSelf: 'center',
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1,
-    },
-    
-    photoButtonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginBottom: 15,
-        width: '100%',
-    },
-    smallPhotoButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 15,
-        borderRadius: 10,
-        backgroundColor: Styles.button.backgroundColor,
-        width: 190,
-        justifyContent: 'center',
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 2,
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Make the POST request to the API.
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'apikey': API_KEY,
         },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    photoPreviewGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        marginBottom: 20,
-    },
-    photoThumbnailContainer: {
-        position: 'relative',
-        margin: 5,
-        width: 100,
-        height: 100,
-        borderRadius: 8,
-        overflow: 'hidden',
-    },
-    photoThumbnail: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-        borderRadius: 8,
-    },
-    deletePhotoButton: {
-        position: 'absolute',
-        top: -8,
-        right: -8,
-        backgroundColor: 'white',
-        borderRadius: 12,
-        padding: 2,
-    },
-    formLabels: {
-        textAlign: 'left',
-        fontSize: 18,
-    },
-    defaultMarker: {
-        padding: 2,
-        backgroundColor: 'white',
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: 'red',
-    },
-    photoMarker: {
-        padding: 2,
-        backgroundColor: 'white',
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: 'green',
-    },
-    modalHandle: {
-        width: '100%',
-        alignItems: 'center',
-        paddingVertical: 10,
-        marginBottom: 10,
-    },
-    modalHandleBar: {
-        width: 60,
-        height: 5,
-        backgroundColor: '#ccc',
-        borderRadius: 2.5,
-    },
+        body: JSON.stringify(requestBody)
+      });
+      
+      // Check if the response was successful.
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${response.status} - ${errorData.message}`);
+      }
+
+      // Parse the JSON data from the response.
+      const data = await response.json();
+      
+      // The current weather data is located at `data.data.timelines[0].intervals[0].values`.
+      const currentInterval = data.data.timelines[0].intervals[0];
+      setWeatherData(currentInterval.values);
+
+    } catch (err: any) {
+      console.error("Failed to fetch weather:", err);
+      setError(err.message || 'Failed to fetch weather data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use the useEffect hook to fetch data when the component mounts.
+  useEffect(() => {
+    // New York City coordinates. You can change these.
+    const lat = 40.7128;
+    const lon = -74.0060;
+    fetchWeather(lat, lon);
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Current Weather</Text>
+        <TouchableOpacity 
+          style={styles.refreshButton}
+          onPress={() => fetchWeather(40.7128, -74.0060)}
+          disabled={loading}
+        >
+          <Text style={styles.refreshText}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Loading current weather...</Text>
+        </View>
+      ) : weatherData ? (
+        <View style={styles.weatherCard}>
+          <Text style={styles.weatherIcon}>
+            {/* You can replace this with an actual icon component */}
+            ☀️
+          </Text>
+          <Text style={styles.temperature}>{Math.round(weatherData.temperature)}°C</Text>
+          <View style={styles.dataRow}>
+            <Text style={styles.label}>Wind:</Text>
+            <Text style={styles.value}>{Math.round(weatherData.windSpeed)} m/s</Text>
+          </View>
+          <View style={styles.dataRow}>
+            <Text style={styles.label}>Humidity:</Text>
+            <Text style={styles.value}>{Math.round(weatherData.humidity)}%</Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.noDataContainer}>
+          <Text style={styles.noDataText}>
+            No weather data available. Press Refresh to load.
+          </Text>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  refreshButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  refreshText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  weatherCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 32,
+    margin: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  weatherIcon: {
+    fontSize: 72,
+    marginVertical: 16,
+  },
+  temperature: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+  },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 8,
+  },
+  label: {
+    fontSize: 18,
+    color: '#888',
+    fontWeight: '500',
+  },
+  value: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#555',
+  },
+  errorContainer: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#ffebee',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#f44336',
+    alignSelf: 'stretch',
+    marginHorizontal: 16,
+  },
+  errorText: {
+    color: '#f44336',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  noDataContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  }
 });
+
+export default App;
