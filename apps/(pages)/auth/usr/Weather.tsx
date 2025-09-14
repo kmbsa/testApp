@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
+import { LineChart } from 'react-native-chart-kit';
 import Styles from '../../../styles/styles';
 
 import { Coordinate, WeatherPreviewProps } from '../../../navigation/types';
@@ -19,39 +20,32 @@ import { Weather_API_KEY } from '@env';
 
 const { width } = Dimensions.get('window');
 
-export interface WeatherProps {
-    isVisible: boolean;
-    onClose: () => void;
-    location: Coordinate;
-}
-
+// Updated interface to match the fields from your Postman request
 export interface WeatherValues {
-    weatherCode: number;
     temperature: number;
-    temperatureApparent: number;
-    humidity: number;
-    windSpeed: number;
-    windDirection: number;
-    pressureSurfaceLevel: number;
+    humidity?: number;
+    precipitationProbability?: number;
+    windSpeed?: number;
+    temperatureApparent?: number;
+    windDirection?: number;
+    pressureSurfaceLevel?: number;
 }
 
+// Updated interface to match the API response structure
 export interface WeatherDataPoint {
-    time: string;
+    startTime: string; // The Postman response uses 'startTime'
     values: WeatherValues;
 }
 
+// The API response now contains a list of timelines
 interface Timelines {
-    hourly: WeatherDataPoint[];
-    daily: WeatherDataPoint[];
+    timestep: string;
+    intervals: WeatherDataPoint[];
 }
 
 export interface WeatherForecastResponse {
-    timelines: Timelines;
-    location: {
-        lat: number;
-        lon: number;
-        name: string;
-        type: string;
+    data: {
+        timelines: Timelines[];
     };
 }
 // A simple line graph component
@@ -62,57 +56,46 @@ interface LineGraphProps {
 const LineGraph = ({ data }: LineGraphProps) => {
     if (data.length === 0) return null;
 
+    // Filter out any data points without a temperature value
     const validData = data.filter(d => d.values?.temperature != null);
     if (validData.length === 0) return null;
+    
+    // Prepare data for the LineChart component
+    const temperatures = validData.map(d => parseFloat(d.values.temperature.toFixed(0)));
+    const labels = validData.map(d => new Date(d.startTime).toLocaleDateString('en-US', { weekday: 'short' }));
 
-    const temperatures = validData.map(d => d.values.temperature);
-    const maxTemp = Math.max(...temperatures);
-    const minTemp = Math.min(...temperatures);
-    const tempRange = maxTemp - minTemp;
-    const graphHeight = 150;
+    const chartData = {
+        labels: labels,
+        datasets: [{
+            data: temperatures,
+        }],
+    };
 
-    const points = validData.map((d, index) => {
-        const temp = d.values.temperature;
-        const yPos = tempRange > 0 ? (temp - minTemp) / tempRange : 0;
-        const xPos = (index / (validData.length - 1)) * (width - 80);
-        return { x: xPos, y: (1 - yPos) * (graphHeight - 20) + 10, temp: temp, time: d.time };
-    });
+    const chartConfig = {
+        backgroundGradientFrom: Styles.header.backgroundColor,
+        backgroundGradientTo: Styles.header.backgroundColor,
+        decimalPlaces: 0,
+        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+        labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+        propsForDots: {
+            r: "6",
+            strokeWidth: "2",
+            stroke: Styles.header.backgroundColor,
+        },
+    };
 
     return (
         <View style={localStyles.chartContainer}>
-            {points.length > 1 && points.slice(0, points.length - 1).map((point, index) => {
-                const nextPoint = points[index + 1];
-                const dx = nextPoint.x - point.x;
-                const dy = nextPoint.y - point.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                const transformOrigin = { x: 0, y: 0 };
-
-                return (
-                    <View
-                        key={index}
-                        style={[
-                            localStyles.line,
-                            {
-                                width: distance,
-                                transform: [
-                                    { translateX: point.x },
-                                    { translateY: point.y },
-                                    { rotate: `${angle}deg` },
-                                ],
-                            },
-                        ]}
-                    />
-                );
-            })}
-            {/* Render the data points and labels */}
-            {points.map((point, index) => (
-                <View key={index} style={[localStyles.pointWrapper, { left: point.x, top: point.y }]}>
-                    <View style={localStyles.point} />
-                    <Text style={localStyles.pointLabel}>{point.temp.toFixed(0)}°</Text>
-                    <Text style={localStyles.pointDateLabel}>{new Date(point.time).toLocaleDateString('en-US', { weekday: 'short' })}</Text>
-                </View>
-            ))}
+            <LineChart
+                data={chartData}
+                width={width - 80}
+                height={220}
+                chartConfig={chartConfig}
+                bezier
+                style={{
+                    borderRadius: 10,
+                }}
+            />
         </View>
     );
 };
@@ -125,7 +108,8 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
     const [error, setError] = useState<string | null>(null);
 
     const apiKey = typeof Weather_API_KEY !== 'undefined' ? Weather_API_KEY : 'YOUR_API_KEY_HERE';
-    const baseUrl = "https://api.tomorrow.io/v4/weather/forecast";
+    // Use the correct base URL from your Postman request
+    const baseUrl = "https://api.tomorrow.io/v4/timelines";
     
     // Extract location from navigation params
     const location = route.params?.location;
@@ -140,25 +124,26 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
         setError(null);
 
         const [latitude, longitude] = [location.latitude, location.longitude];
+        // Use the fields from your Postman request, including the newly requested ones
         const fields = [
-            "temperature", "temparatureApparent", "humidity",
-            "windSpeed", "windDirection", "pressureSurfaceLevel"
+            "temperature", "humidity", "precipitationProbability", "windSpeed",
+            "temperatureApparent", "windDirection", "pressureSurfaceLevel"
         ];
 
         try {
-            const url = `${baseUrl}?location=${latitude},${longitude}&units=metric&timesteps=1d,1h&fields=${fields.join(',')}&apikey=${apiKey}`;
+            // Updated API request with the correct base URL and timesteps
+            const url = `${baseUrl}?location=${latitude},${longitude}&units=metric&timesteps=1d&fields=${fields.join(',')}&apikey=${apiKey}`;
             const response = await axios.get<WeatherForecastResponse>(url);
             
+            // Access the correct data path from your Postman response structure
             const data: WeatherForecastResponse = response.data;
-            
-            const dailyData = data?.timelines?.daily || [];
-            const hourlyData = data?.timelines?.hourly || [];
+            const dailyData = data?.data?.timelines[0]?.intervals || [];
 
-            const next6Days = dailyData.slice(0, 6);
-            setDailyForecast(next6Days);
+            setDailyForecast(dailyData);
 
-            if (hourlyData.length > 0) {
-                setCurrentWeather(hourlyData[0].values);
+            // Set current weather from the first daily data point, as you requested only 1d timestep
+            if (dailyData.length > 0) {
+                setCurrentWeather(dailyData[0].values);
             }
         } catch (err: any) {
             console.error("Weather API Error:", err);
@@ -202,18 +187,22 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
                                 <Text style={[localStyles.detailHeader, { color: Styles.headerText.color }]}>Current Conditions</Text>
                                 <View style={localStyles.detailsGrid}>
                                     <View style={localStyles.detailItem}>
-                                        <Text style={localStyles.detailLabel}>Temperature Apparent</Text>
-                                        <Text style={localStyles.detailValue}>{currentWeather.temperatureApparent?.toFixed(1) ?? 'N/A'} °C</Text>
-                                    </View>
-                                    <View style={localStyles.detailItem}>
                                         <Text style={localStyles.detailLabel}>Humidity</Text>
                                         <Text style={localStyles.detailValue}>{currentWeather.humidity?.toFixed(0) ?? 'N/A'}%</Text>
+                                    </View>
+                                    <View style={localStyles.detailItem}>
+                                        <Text style={localStyles.detailLabel}>Apparent Temp</Text>
+                                        <Text style={localStyles.detailValue}>{currentWeather.temperatureApparent?.toFixed(1) ?? 'N/A'}°C</Text>
+                                    </View>
+                                    <View style={localStyles.detailItem}>
+                                        <Text style={localStyles.detailLabel}>Precipitation</Text>
+                                        <Text style={localStyles.detailValue}>{currentWeather.precipitationProbability?.toFixed(0) ?? 'N/A'}%</Text>
                                     </View>
                                     <View style={localStyles.detailItem}>
                                         <Text style={localStyles.detailLabel}>Wind Speed</Text>
                                         <Text style={localStyles.detailValue}>{currentWeather.windSpeed?.toFixed(1) ?? 'N/A'} m/s</Text>
                                     </View>
-                                    <View style={localStyles.detailItem}>
+                                     <View style={localStyles.detailItem}>
                                         <Text style={localStyles.detailLabel}>Wind Direction</Text>
                                         <Text style={localStyles.detailValue}>{currentWeather.windDirection?.toFixed(0) ?? 'N/A'}°</Text>
                                     </View>
@@ -227,7 +216,7 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
                                 <View style={localStyles.dailyForecastList}>
                                     {dailyForecast.length > 0 && dailyForecast.map((day, index) => (
                                         <View key={index} style={[localStyles.dayCard, Styles.itemBackground]}>
-                                            <Text style={localStyles.dayCardText}>{new Date(day.time).toLocaleDateString()}</Text>
+                                            <Text style={localStyles.dayCardText}>{new Date(day.startTime).toLocaleDateString()}</Text>
                                             <Text style={localStyles.dayCardText}>{day.values.temperature?.toFixed(1) ?? 'N/A'}°C</Text>
                                         </View>
                                     ))}
@@ -237,6 +226,7 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
                         {!isLoading && !error && !currentWeather && (
                             <Text style={localStyles.noDataText}>No weather data available for this location.</Text>
                         )}
+                        {/* New container for the Temperature Trend, following the established pattern */}
                         <View style={[localStyles.weatherSummary, localStyles.detailsContainer, { alignItems: 'center' }]}>
                             <Text style={[localStyles.detailHeader, { color: Styles.headerText.color }]}>Temperature Trend</Text>
                             {dailyForecast.length > 0 && <LineGraph data={dailyForecast} />}
@@ -260,26 +250,6 @@ const localStyles = StyleSheet.create({
         zIndex: 10,
         padding: 5,
         borderRadius: 50,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    closeButton: {
-        fontSize: 30,
-        fontWeight: 'bold',
-        color: '#888',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     errorText: {
         color: 'red',
@@ -358,43 +328,50 @@ const localStyles = StyleSheet.create({
         textAlign: 'center',
     },
     chartContainer: {
-        height: 180,
-        marginTop: 10,
-        position: 'relative',
+        marginVertical: 10,
+        padding: 20,
+        backgroundColor: Styles.itemBackground.backgroundColor,
+        height: 250,
+    },
+    chartBackground: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.2,
+        borderRadius: 10,
     },
     line: {
         position: 'absolute',
-        height: 2,
-        backgroundColor: Styles.header.backgroundColor,
+        height: 3,
+        backgroundColor: Styles.headerText.color,
+        borderRadius: 2,
     },
     pointWrapper: {
         position: 'absolute',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 40,
-        height: 40,
-        marginLeft: -20,
-        marginTop: -20,
+        width: 60,
+        height: 60,
+        marginLeft: -30,
+        marginTop: -30,
     },
     point: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
         backgroundColor: Styles.headerText.color,
         borderWidth: 2,
         borderColor: Styles.header.backgroundColor,
     },
     pointLabel: {
         position: 'absolute',
-        top: -20,
-        fontSize: 12,
+        top: -15,
+        fontSize: 14,
         fontWeight: 'bold',
         color: Styles.headerText.color,
     },
     pointDateLabel: {
         position: 'absolute',
-        bottom: -20,
+        bottom: -15,
         fontSize: 10,
-        color: Styles.headerText.color,
+        color: '#ccc',
     },
 });

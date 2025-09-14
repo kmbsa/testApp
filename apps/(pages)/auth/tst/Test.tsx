@@ -15,6 +15,7 @@ import { Weather_API_KEY } from '@env';
 
 // Type definitions for the weather data structure
 type WeatherData = {
+  date: string;
   temperature: number;
   precipitationProbability: number;
   humidity: number;
@@ -25,8 +26,8 @@ type ErrorType = string | null;
 
 // Main App component that fetches and displays weather data.
 const App = () => {
-  // State for storing the single weather data object.
-  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  // State for storing the weather data (next 5 days).
+  const [weatherData, setWeatherData] = useState<WeatherData[] | null>(null);
   // State for managing the loading status.
   const [loading, setLoading] = useState(true);
   // State for handling and displaying any errors.
@@ -35,53 +36,58 @@ const App = () => {
   // The API key is now imported from the environment
   const API_KEY = Weather_API_KEY;
 
-  // Function to fetch the weather data for the current moment.
+  // Function to fetch the weather data for the next 5 days.
   const fetchWeather = async (latitude: number, longitude: number) => {
-    // The API endpoint for the timelines.
     const endpoint = 'https://api.tomorrow.io/v4/timelines';
-
-    // The data to be sent in the POST request.
-    const requestBody = {
-      location: {
-        lat: latitude,
-        lon: longitude
-      },
-      fields: [
-        "temperature",
-        "humidity",
-        "windSpeed"
-      ],
-      units: "metric",
-      timesteps: ["1d"],
-      timezone: "auto"
-    };
 
     try {
       setLoading(true);
       setError(null);
-      
-      // Make the POST request to the API.
-      const response = await fetch(endpoint, {
-        method: 'POST',
+
+      // Build the query string for the GET request
+      const queryString = new URLSearchParams({
+        location: `${latitude},${longitude}`,
+        fields: "temperature,humidity,precipitationProbability,windSpeed",  // Request multiple fields
+        units: "metric",
+        timesteps: "1d",  // Daily forecast
+        timezone: "auto",
+        apikey: API_KEY,
+      }).toString();
+
+      console.log("Request URL: ", `${endpoint}?${queryString}`)
+
+      // Make the GET request to the API
+      const response = await fetch(`${endpoint}?${queryString}`, {
         headers: {
           'accept': 'application/json',
-          'apikey': API_KEY,
         },
-        body: JSON.stringify(requestBody)
       });
       
-      // Check if the response was successful.
+      console.log("Response Status:", response.status); // Log response status
+
+      // Check if the response was successful
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(`API Error: ${response.status} - ${errorData.message}`);
       }
 
-      // Parse the JSON data from the response.
+      // Parse the JSON data from the response
       const data = await response.json();
-      
-      // The current weather data is located at `data.data.timelines[0].intervals[0].values`.
-      const currentInterval = data.data.timelines[0].intervals[0];
-      setWeatherData(currentInterval.values);
+
+      // Access the forecast data (multiple daily intervals)
+      const forecastIntervals = data.data.timelines[0].intervals;
+
+      // If you need data for the next 5 days, slice the array
+      const forecastData = forecastIntervals.slice(0, 5).map((interval: any) => ({
+        date: interval.startTime.split('T')[0], // Extract date part from ISO string
+        temperature: interval.values.temperature,
+        precipitationProbability: interval.values.precipitationProbability,
+        humidity: interval.values.humidity,
+        windSpeed: interval.values.windSpeed
+      }));
+
+      // Update the weather data state
+      setWeatherData(forecastData);
 
     } catch (err: any) {
       console.error("Failed to fetch weather:", err);
@@ -91,9 +97,7 @@ const App = () => {
     }
   };
 
-  // Use the useEffect hook to fetch data when the component mounts.
   useEffect(() => {
-    // New York City coordinates. You can change these.
     const lat = 40.7128;
     const lon = -74.0060;
     fetchWeather(lat, lon);
@@ -102,7 +106,7 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Current Weather</Text>
+        <Text style={styles.title}>5-Day Weather Forecast</Text>
         <TouchableOpacity 
           style={styles.refreshButton}
           onPress={() => fetchWeather(40.7128, -74.0060)}
@@ -123,23 +127,28 @@ const App = () => {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading current weather...</Text>
+          <Text style={styles.loadingText}>Loading weather...</Text>
         </View>
       ) : weatherData ? (
-        <View style={styles.weatherCard}>
-          <Text style={styles.weatherIcon}>
-            {/* You can replace this with an actual icon component */}
-            ☀️
-          </Text>
-          <Text style={styles.temperature}>{Math.round(weatherData.temperature)}°C</Text>
-          <View style={styles.dataRow}>
-            <Text style={styles.label}>Wind:</Text>
-            <Text style={styles.value}>{Math.round(weatherData.windSpeed)} m/s</Text>
-          </View>
-          <View style={styles.dataRow}>
-            <Text style={styles.label}>Humidity:</Text>
-            <Text style={styles.value}>{Math.round(weatherData.humidity)}%</Text>
-          </View>
+        <View style={styles.forecastContainer}>
+          {weatherData.map((day, index) => (
+            <View style={styles.weatherCard} key={index}>
+              <Text style={styles.date}>{day.date}</Text>
+              <Text style={styles.temperature}>{Math.round(day.temperature)}°C</Text>
+              <View style={styles.dataRow}>
+                <Text style={styles.label}>Wind:</Text>
+                <Text style={styles.value}>{Math.round(day.windSpeed)} m/s</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.label}>Humidity:</Text>
+                <Text style={styles.value}>{Math.round(day.humidity)}%</Text>
+              </View>
+              <View style={styles.dataRow}>
+                <Text style={styles.label}>Precipitation:</Text>
+                <Text style={styles.value}>{Math.round(day.precipitationProbability)}%</Text>
+              </View>
+            </View>
+          ))}
         </View>
       ) : (
         <View style={styles.noDataContainer}>
@@ -198,24 +207,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  forecastContainer: {
+    marginTop: 80,
+    paddingHorizontal: 16,
+  },
   weatherCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 32,
-    margin: 16,
-    alignItems: 'center',
+    padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 5,
   },
-  weatherIcon: {
-    fontSize: 72,
-    marginVertical: 16,
+  date: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
   },
   temperature: {
-    fontSize: 48,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
@@ -223,16 +237,14 @@ const styles = StyleSheet.create({
   dataRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
     marginBottom: 8,
   },
   label: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#888',
-    fontWeight: '500',
   },
   value: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#555',
   },
@@ -244,21 +256,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f44336',
     alignSelf: 'stretch',
-    marginHorizontal: 16,
   },
   errorText: {
     color: '#f44336',
     fontSize: 16,
-    textAlign: 'center',
-  },
-  noDataContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  noDataText: {
-    fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
   loadingContainer: {
@@ -270,7 +271,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
-  }
+  },
+  noDataContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
 
 export default App;
