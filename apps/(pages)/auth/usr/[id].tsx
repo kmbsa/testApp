@@ -15,6 +15,7 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import axios from 'axios';
 
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
@@ -31,45 +32,6 @@ import { WeatherValues, WeatherForecastResponse } from './Weather';
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
 const { width } = Dimensions.get('window');
-
-// Helper function to map Tomorrow.io weather codes to Ionicons
-const getWeatherIconName = (weatherCode: number): string => {
-    switch (weatherCode) {
-        case 1000:
-            return 'sunny-outline'; // Clear, Sunny
-        case 1100:
-            return 'partly-sunny-outline'; // Mostly Clear
-        case 1101:
-            return 'partly-sunny-outline'; // Partly Cloudy
-        case 1102:
-            return 'cloudy-outline'; // Mostly Cloudy
-        case 1001:
-            return 'cloudy-outline'; // Cloudy
-        case 2000:
-        case 2100:
-            return 'cloudy-outline'; // Fog
-        case 4000:
-        case 4200:
-            return 'rainy-outline'; // Drizzle, Light Rain
-        case 4201:
-            return 'rainy-outline'; // Heavy Rain
-        case 4001:
-            return 'rainy-outline'; // Rain
-        case 5000:
-        case 5100:
-        case 5101:
-            return 'snow-outline'; // Snow
-        case 6000:
-        case 6001:
-            return 'snow-outline'; // Freezing Rain
-        case 7000:
-        case 7100:
-        case 7101:
-            return 'thunderstorm-outline'; // Ice pellets, Thunderstorm
-        default:
-            return 'cloudy-outline';
-    }
-};
 
 export default function AreaDetailsScreen() {
     const { userToken, signOut } = useAuth();
@@ -179,30 +141,35 @@ export default function AreaDetailsScreen() {
         setIsWeatherLoading(true);
         setWeatherError(null);
 
-        if (!Weather_API_KEY) {
+        const apiKey = typeof Weather_API_KEY !== 'undefined' ? Weather_API_KEY : 'YOUR_API_KEY_HERE';
+        const baseUrl = "https://api.tomorrow.io/v4/timelines";
+        const fields = [
+            "temperature", "humidity", "precipitationProbability", "windSpeed",
+            "temperatureApparent", "windDirection", "pressureSurfaceLevel"
+        ];
+        
+        if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
             setWeatherError("Weather API Key is missing.");
             setIsWeatherLoading(false);
             return;
         }
 
-        const url = `https://api.tomorrow.io/v4/weather/forecast?location=${location.latitude},${location.longitude}&units=metric&timesteps=1h&apikey=${Weather_API_KEY}`;
-        
         try {
-            const response = await fetch(url);
+            const url = `${baseUrl}?location=${location.latitude},${location.longitude}&units=metric&timesteps=1d&fields=${fields.join(',')}&apikey=${apiKey}`;
+            const response = await axios.get<WeatherForecastResponse>(url);
             
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch weather data.');
-            }
-            
-            const data: WeatherForecastResponse = await response.json();
-            
-            if (data?.timelines?.hourly?.length > 0) {
-                setWeatherData(data.timelines.hourly[0].values);
+            const data: WeatherForecastResponse = response.data;
+            const dailyData = data?.data?.timelines[0]?.intervals || [];
+
+            if (dailyData.length > 0) {
+                setWeatherData(dailyData[0].values);
+            } else {
+                setWeatherData(null);
+                setWeatherError('No weather data available.');
             }
         } catch (err: any) {
             console.error("Weather API Error:", err);
-            setWeatherError(err.message);
+            setWeatherError(err.response?.data?.message || err.message || 'Failed to fetch weather data.');
         } finally {
             setIsWeatherLoading(false);
         }
@@ -350,7 +317,6 @@ export default function AreaDetailsScreen() {
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
                             
-
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Region:</Text> {areaData.Region || 'N/A'}</Text>
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Province:</Text> {areaData.Province || 'N/A'}</Text>
                             <Text style={localStyles.modalText}><Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text> {areaData.coordinates.length}</Text>
@@ -360,15 +326,12 @@ export default function AreaDetailsScreen() {
                             {areaData.images && areaData.images.length > 0 ? (
                                 <View style={localStyles.imageGrid}>
                                     {areaData.images.map((image: BackendPhoto) => {
-                                        // --- Add console log to see the URL being attempted ---
                                         console.log('Attempting to load image:', image.Filepath);
                                         return (
                                             <Image
                                                 key={image.Image_ID.toString()}
-                                                // Updated logic to use API_URL and Filepath
                                                 source={{ uri: `${API_URL}/${image.Filepath}` }}
                                                 style={localStyles.imageThumbnail}
-                                                // --- Enhanced onError logging ---
                                                 onError={(e) => {
                                                     console.error('Image load error for URL:', `${API_URL}/${image.Filepath}`, 'Error:', e.nativeEvent.error);
                                                 }}
@@ -381,26 +344,20 @@ export default function AreaDetailsScreen() {
                             )}
                             {/* Weather Section */}
                             <View style={localStyles.weatherContainer}>
+                                <Text style={localStyles.modalTitle}>Current Weather</Text>
                                 {isWeatherLoading ? (
                                     <ActivityIndicator size="small" color={Styles.button.backgroundColor} />
                                 ) : weatherError ? (
                                     <Text style={localStyles.weatherErrorText}>Weather data not available.</Text>
                                 ) : weatherData ? (
                                     <>
-                                        <View style={localStyles.weatherInfo}>
-                                            <Ionicons 
-                                                name={getWeatherIconName(weatherData.weatherCode)} 
-                                                size={50} 
-                                                color="#007BFF" 
-                                            />
-                                            <Text style={localStyles.weatherTemp}>{weatherData.temperature.toFixed(0)}°C</Text>
-                                        </View>
+                                        <Text style={localStyles.weatherTemp}>{weatherData.temperature?.toFixed(0) ?? 'N/A'}°C</Text>
                                         <TouchableOpacity
                                             style={localStyles.fullForecastButton}
                                             onPress={() => {
                                                 const location = {
-                                                  latitude: areaData.coordinates[0].Latitude,
-                                                  longitude: areaData.coordinates[0].Longitude
+                                                    latitude: areaData.coordinates[0].Latitude,
+                                                    longitude: areaData.coordinates[0].Longitude
                                                 };
                                                 navigation.navigate('WeatherPreview', { location });
                                                 setModalVisible(false);
