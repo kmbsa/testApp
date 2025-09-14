@@ -27,11 +27,75 @@ import {
     Coordinate
 } from '../../../navigation/types';
 
-import { WeatherValues, WeatherForecastResponse } from './Weather';
+// Updated type definition to include weather code
+// NOTE: Assuming this type is defined in your Weather.tsx file,
+// you should update that file's content to match this interface.
+export interface WeatherValues {
+  temperature?: number;
+  humidity?: number;
+  precipitationProbability?: number;
+  windSpeed?: number;
+  temperatureApparent?: number;
+  windDirection?: number;
+  pressureSurfaceLevel?: number;
+  weatherCode?: number; // Added weather code
+}
+
+export interface WeatherForecastResponse {
+    data: {
+        timelines: {
+            intervals: {
+                values: WeatherValues;
+            }[];
+        }[];
+    };
+}
+
 
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
 const { width } = Dimensions.get('window');
+
+// Helper function to get an icon based on the tomorrow.io weather code
+const getWeatherIcon = (weatherCode: number | undefined): string => {
+  if (weatherCode === undefined) {
+    return '🌡️'; // Default emoji icon
+  }
+  switch (weatherCode) {
+    case 1000: // Clear
+    case 1100: // Mostly Clear
+      return '☀️';
+    case 1101: // Partly Cloudy
+    case 1102: // Mostly Cloudy
+    case 1001: // Cloudy
+      return '☁️';
+    case 4000: // Drizzle
+    case 4200: // Light Rain
+    case 4001: // Rain
+    case 4201: // Heavy Rain
+      return '🌧️';
+    case 5000: // Snow
+    case 5001: // Flurries
+    case 5100: // Light Snow
+    case 5101: // Heavy Snow
+      return '🌨️';
+    case 6000: // Freezing Drizzle
+    case 6001: // Freezing Rain
+    case 6200: // Light Freezing Rain
+    case 6201: // Heavy Freezing Rain
+    case 7000: // Ice Pellets
+    case 7101: // Heavy Ice Pellets
+    case 7102: // Light Ice Pellets
+      return '🧊';
+    case 8000: // Thunderstorm
+      return '⛈️';
+    case 2000: // Fog
+    case 2100: // Light Fog
+      return '🌫️';
+    default:
+      return '🌡️'; // Default if code not recognized
+  }
+};
 
 export default function AreaDetailsScreen() {
     const { userToken, signOut } = useAuth();
@@ -143,9 +207,10 @@ export default function AreaDetailsScreen() {
 
         const apiKey = typeof Weather_API_KEY !== 'undefined' ? Weather_API_KEY : 'YOUR_API_KEY_HERE';
         const baseUrl = "https://api.tomorrow.io/v4/timelines";
+        // NOTE: Added 'weatherCode' to the list of fields.
         const fields = [
             "temperature", "humidity", "precipitationProbability", "windSpeed",
-            "temperatureApparent", "windDirection", "pressureSurfaceLevel"
+            "temperatureApparent", "windDirection", "pressureSurfaceLevel", "weatherCode"
         ];
         
         if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
@@ -351,7 +416,10 @@ export default function AreaDetailsScreen() {
                                     <Text style={localStyles.weatherErrorText}>Weather data not available.</Text>
                                 ) : weatherData ? (
                                     <>
-                                        <Text style={localStyles.weatherTemp}>{weatherData.temperature?.toFixed(0) ?? 'N/A'}°C</Text>
+                                        <View style={localStyles.weatherInfo}>
+                                            <Text style={localStyles.weatherIcon}>{getWeatherIcon(weatherData.weatherCode)}</Text>
+                                            <Text style={localStyles.weatherTemp}>{weatherData.temperature?.toFixed(0) ?? 'N/A'}°C</Text>
+                                        </View>
                                         <TouchableOpacity
                                             style={localStyles.fullForecastButton}
                                             onPress={() => {
@@ -506,6 +574,9 @@ const localStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 10,
+    },
+    weatherIcon: {
+        fontSize: 48,
     },
     weatherTemp: {
         fontSize: 48,
