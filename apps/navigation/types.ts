@@ -48,7 +48,7 @@ export type RootStackParamList = {
     AuthenticatedStack: undefined;
     MapPreview: {areaId: number} | undefined;
     WeatherPreview: {location: Coordinate} | undefined;
-    AuthTabs: undefined
+    AuthTabs: undefined;
     Test: undefined;
 };
 

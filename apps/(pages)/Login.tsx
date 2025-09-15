@@ -14,12 +14,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Styles from '../styles/styles';
 
 import { useAuth } from '../context/AuthContext';
 
-import {LoginScreenProps, RootStackNavigationProp} from '../navigation/types';
+import {RootStackNavigationProp} from '../navigation/types';
 
 function Login() {
     const [emailOrUsername, setEmailOrUsername] = useState('');

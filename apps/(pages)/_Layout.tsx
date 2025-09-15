@@ -1,9 +1,8 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import LoginScreen from '../(pages)/Login';
 import RegisterScreen from '../(pages)/Register';
-import { AntDesign, Entypo, Ionicons } from '@expo/vector-icons';  // For icons (optional)
+import { AntDesign, Entypo, Ionicons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator();
 
@@ -14,7 +13,7 @@ const App = () => {
         screenOptions={{
           tabBarStyle: { backgroundColor: '#fff' },
           tabBarLabelStyle: { fontSize: 14 },
-          tabBarActiveTintColor: 'blue', // Highlight active tab
+          tabBarActiveTintColor: 'blue',
         }}
       >
         <Tab.Screen
@@ -29,7 +28,7 @@ const App = () => {
           }}
         />
         <Tab.Screen
-          name="Register"
+          name="Registration"
           component={RegisterScreen}
           options={{
             title: 'Register',
