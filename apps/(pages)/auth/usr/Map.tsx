@@ -53,7 +53,7 @@ export default function Map() {
     const [mapLoaded, setMapLoaded] = useState(false);
 
     const [modalVisible, setModalVisible] = useState(false);
-    const [placeName, setPlaceName] = useState('');
+    const [areaName, setAreaName] = useState('');
     const [areaRegion, setAreaRegion] = useState('');
     const [areaProvince, setAreaProvince] = useState('');
     const [areaOrganization, setAreaOrganization] = useState('');
@@ -189,7 +189,7 @@ export default function Map() {
                         console.log(">>> Map: Clearing map via context resetPoints.");
                         resetPoints();
                         setModalVisible(false);
-                        setPlaceName('');
+                        setAreaName('');
                         setAreaRegion('');
                         setAreaProvince('');
                         setAreaOrganization('');
@@ -216,8 +216,7 @@ export default function Map() {
     const handleSubmitForm = async () => {
         if (isSubmitting) return;
 
-        // Basic validation
-        if (!placeName.trim() || !areaRegion.trim() || !areaProvince.trim()) {
+        if (!areaName.trim() || !areaRegion.trim() || !areaProvince.trim() || !areaOrganization.trim()) {
             Alert.alert("Missing Information", "Please fill in all required form fields (Area Name, Region, Province).");
             return;
         }
@@ -240,7 +239,7 @@ export default function Map() {
 
         const areaData = {
             user_id: currentUserId,
-            name: placeName,
+            name: areaName,
             region: areaRegion,
             province: areaProvince,
             organization: areaOrganization,
@@ -279,7 +278,7 @@ export default function Map() {
 
             resetPoints();
             clearFormPhotos();
-            setPlaceName('');
+            setAreaName('');
             setAreaRegion('');
             setAreaProvince('');
             setModalVisible(false);
@@ -512,8 +511,8 @@ export default function Map() {
                                     style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
                                     placeholder="Place Name"
                                     placeholderTextColor="#3D550C"
-                                    value={placeName}
-                                    onChangeText={setPlaceName}
+                                    value={areaName}
+                                    onChangeText={setAreaName}
                                 />
                                 <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
                                 <TextInput
