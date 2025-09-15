@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const token = response.data.token;
         console.log("AuthContext: Login successful, saving token...");
         await AsyncStorage.setItem("token", token);
-        setUserToken(token); // Update state, which will trigger fetchUserData effect
+        setUserToken(token); 
         console.log("AuthContext: Token saved and state updated.");
       } else {
         setError("Login failed: No token received from API.");

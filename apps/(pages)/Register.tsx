@@ -79,10 +79,18 @@ function Register() {
             });
 
             if (response.status === 201) {
+                setFirstName("");
+                setLastName("");
+                setPassword("");
+                setConfirmPassword("");
+                setEmail("");
+                setContactNumber("");
+                setSex(null);
+
                 Alert.alert('Success', 'You have successfully registered.', [
                     {
                         text: 'OK',
-                        onPress: () => navigation.replace('Login'),
+                        onPress: () => navigation.navigate('Login'),
                     },
                 ]);
 

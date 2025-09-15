@@ -14,7 +14,7 @@ import {
     ScrollView,
     PanResponder,
     Animated,
-    ActivityIndicator, // Import ActivityIndicator for loading state
+    ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Styles from '../../../styles/styles';
@@ -61,7 +61,7 @@ export default function Map() {
 
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-    const { userToken, userData, signOut } = useAuth(); 
+    const { userToken, userData, signOut } = useAuth();
 
     const panY = useRef(new Animated.Value(0)).current;
     const initialModalHeight = useRef(0);
@@ -118,6 +118,9 @@ export default function Map() {
 
     const handleUndo = () => {
         if (isComplete) return;
+        if (points.length === 1) {
+            setUserLocation(null);
+        }
         undoPoint();
     };
 
@@ -177,7 +180,7 @@ export default function Map() {
     const handleClearMap = () => {
         Alert.alert(
             "Clear Map",
-            "Are you sure you want to clear all plotted points and clear all attached photos?",
+            "Are you sure you want to clear all plotted points?",
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -185,7 +188,6 @@ export default function Map() {
                     onPress: () => {
                         console.log(">>> Map: Clearing map via context resetPoints.");
                         resetPoints();
-                        clearFormPhotos();
                         setModalVisible(false);
                         setPlaceName('');
                         setAreaRegion('');
@@ -381,17 +383,17 @@ export default function Map() {
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <TouchableOpacity
                         onPress={handleClearMap}
-                        disabled={points.length === 0 && formPhotos.length === 0}
+                        disabled={points.length === 0}
                         style={[
                             localStyles.clearButton,
                             {
-                                backgroundColor: (points.length > 0 || formPhotos.length > 0) ? Styles.button.backgroundColor : Styles.inputFields.backgroundColor,
+                                backgroundColor: points.length > 0 ? Styles.button.backgroundColor : Styles.inputFields.backgroundColor,
                                 padding: 8,
                                 borderRadius: 20,
                             },
                         ]}
                     >
-                        <Ionicons name="trash-outline" size={30} color={(points.length > 0 || formPhotos.length > 0) ? 'black' : 'grey'} />
+                        <Ionicons name="trash-outline" size={30} color={points.length > 0 ? 'black' : 'grey'} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -562,6 +564,40 @@ export default function Map() {
                                     </TouchableOpacity>
                                 </View>
 
+                                {formPhotos.length > 0 && (
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            Alert.alert(
+                                                "Clear Photos",
+                                                "Are you sure you want to remove all attached photos?",
+                                                [
+                                                    { text: "Cancel", style: "cancel" },
+                                                    {
+                                                        text: "Clear Photos",
+                                                        onPress: clearFormPhotos,
+                                                        style: "destructive",
+                                                    },
+                                                ],
+                                                { cancelable: true }
+                                            );
+                                        }}
+                                        style={[
+                                            Styles.button,
+                                            {
+                                                backgroundColor: '#F08080',
+                                                marginBottom: 15,
+                                                width: '100%',
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }
+                                        ]}
+                                    >
+                                        <Ionicons name="trash-outline" size={20} color={Styles.buttonText.color} style={{ marginRight: 5 }} />
+                                        <Text style={Styles.buttonText}>Clear Photos</Text>
+                                    </TouchableOpacity>
+                                )}
+
                                 {formPhotos.length > 0 ? (
                                     <View style={localStyles.photoPreviewGrid}>
                                         {formPhotos.map(photo => (
@@ -600,7 +636,7 @@ export default function Map() {
                                         setModalVisible(false);
                                         panY.setValue(0);
                                     }}
-                                    disabled={isSubmitting} 
+                                    disabled={isSubmitting}
                                 >
                                     <View style={{ justifyContent: 'center' }}>
                                         <Text style={[Styles.text, { color: '#555', textAlign: 'center' }]}>Cancel</Text>
@@ -655,7 +691,7 @@ const localStyles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 1,
     },
-    
+
     photoButtonContainer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
