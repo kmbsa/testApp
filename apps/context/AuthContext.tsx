@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null); // Clear previous errors
     console.log("AuthContext: Fetching user data...");
     try {
-      const response = await axios.get<UserData>(`${API_URL}/user`, {
+      const response = await axios.get<UserData>(`${API_URL}/auth/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUserData(response.data);
