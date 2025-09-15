@@ -13,24 +13,24 @@ import { PointsProvider } from '../context/PointsContext';
 import type { RootStackParamList } from './types';
 
 
-const AuthenticatedFlowStack = createNativeStackNavigator<RootStackParamList>();
+const AuthenticatedUserFlowStack = createNativeStackNavigator<RootStackParamList>();
 
-function AuthenticatedStack() {
+function AuthenticatedUserStack() {
     console.log("AuthenticatedStack Component Rendered (Rendering its own Navigator).");
 
     return (
         <PointsProvider>
-            <AuthenticatedFlowStack.Navigator screenOptions={{ headerShown: false }}>
-                <AuthenticatedFlowStack.Screen name="Home" component={Home} />
-                <AuthenticatedFlowStack.Screen name="Map" component={Map} options={{ headerShown: false }} />
-                <AuthenticatedFlowStack.Screen name="Camera" component={Camera} options={{ title: 'Take A Photo' }} />
-                <AuthenticatedFlowStack.Screen name="MapEntries" component={MapEntries} options={{ title: 'Map Entries' }} />
-                <AuthenticatedFlowStack.Screen name="MapPreview" component={MapPreview} options={{ title: 'Map Preview' }} />
-                <AuthenticatedFlowStack.Screen name="WeatherPreview" component={Weather} options={{ title: 'Weather' }} />
-                <AuthenticatedFlowStack.Screen name="Test" component={Test} options={{ title: 'Test'}}/>
-            </AuthenticatedFlowStack.Navigator>
+            <AuthenticatedUserFlowStack.Navigator screenOptions={{ headerShown: false }}>
+                <AuthenticatedUserFlowStack.Screen name="Home" component={Home} />
+                <AuthenticatedUserFlowStack.Screen name="Map" component={Map} options={{ headerShown: false }} />
+                <AuthenticatedUserFlowStack.Screen name="Camera" component={Camera} options={{ title: 'Take A Photo' }} />
+                <AuthenticatedUserFlowStack.Screen name="MapEntries" component={MapEntries} options={{ title: 'Map Entries' }} />
+                <AuthenticatedUserFlowStack.Screen name="MapPreview" component={MapPreview} options={{ title: 'Map Preview' }} />
+                <AuthenticatedUserFlowStack.Screen name="WeatherPreview" component={Weather} options={{ title: 'Weather' }} />
+                <AuthenticatedUserFlowStack.Screen name="Test" component={Test} options={{ title: 'Test'}}/>
+            </AuthenticatedUserFlowStack.Navigator>
         </PointsProvider>
     );
 }
 
-export default AuthenticatedStack;
+export default AuthenticatedUserStack;
