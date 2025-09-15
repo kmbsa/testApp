@@ -217,7 +217,7 @@ export default function Map() {
         if (isSubmitting) return;
 
         if (!areaName.trim() || !areaRegion.trim() || !areaProvince.trim() || !areaOrganization.trim()) {
-            Alert.alert("Missing Information", "Please fill in all required form fields (Area Name, Region, Province).");
+            Alert.alert("Missing Information", "Please fill in all required form fields (Area Name, Region, Province, Organization).");
             return;
         }
 
