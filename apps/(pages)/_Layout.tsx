@@ -11,9 +11,9 @@ const App = () => {
       <Tab.Navigator
         initialRouteName="Login"
         screenOptions={{
-          tabBarStyle: { backgroundColor: '#fff' },
+          tabBarStyle: { backgroundColor: '#3D550C' },
           tabBarLabelStyle: { fontSize: 14 },
-          tabBarActiveTintColor: 'blue',
+          tabBarActiveTintColor: '#F4D03F',
         }}
       >
         <Tab.Screen

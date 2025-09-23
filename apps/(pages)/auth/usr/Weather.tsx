@@ -85,10 +85,10 @@ const LineGraph = ({ data }: LineGraphProps) => {
     };
 
     return (
-        <View style={localStyles.chartContainer}>
+        <View style={[localStyles.chartContainer, { backgroundColor: '#F4D03F'}]}>
             <LineChart
                 data={chartData}
-                width={width - 80}
+                width={width - 100}
                 height={220}
                 chartConfig={chartConfig}
                 bezier
@@ -226,7 +226,7 @@ export default function Weather({ route, navigation }: WeatherPreviewProps) {
                         {!isLoading && !error && !currentWeather && (
                             <Text style={localStyles.noDataText}>No weather data available for this location.</Text>
                         )}
-                        {/* New container for the Temperature Trend, following the established pattern */}
+                            {/*Container for the Temperature Trend*/}
                         <View style={[localStyles.weatherSummary, localStyles.detailsContainer, { alignItems: 'center' }]}>
                             <Text style={[localStyles.detailHeader, { color: Styles.headerText.color }]}>Temperature Trend</Text>
                             {dailyForecast.length > 0 && <LineGraph data={dailyForecast} />}
