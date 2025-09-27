@@ -21,7 +21,6 @@ const Styles = StyleSheet.create({
     elevation: 5,
     alignSelf: 'center',
   },
-
   responsiveFormContainer: {
     width: '95%',
     maxWidth: 500,
@@ -29,7 +28,6 @@ const Styles = StyleSheet.create({
     paddingVertical: responsiveFormPadding,
     alignSelf: 'center',
   },
-
   fieldsContainer: {
     alignItems: 'flex-start',
     width: '100%',
@@ -130,16 +128,16 @@ const Styles = StyleSheet.create({
     fontSize: 18,
     color: '#F4D03F',
   },
-   background: {
+  background: {
         backgroundColor: '#F5F5DC',
     },
-    header: {
+  header: {
         backgroundColor: '#3D550C',
     },
-    headerText: {
+  headerText: {
         color: '#F4D03F',
     },
-    itemBackground: {
+  itemBackground: {
         backgroundColor: '#F9F9E0',
     }
 });

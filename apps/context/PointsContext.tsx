@@ -6,6 +6,8 @@ interface PointsContextType {
   redoStack: Coordinate[];
   isComplete: boolean;
   addPoint: (point: Coordinate) => void;
+  insertPoint: (point: Coordinate, index: number) => void; 
+  updatePoint: (index: number, newPoint: Coordinate) => void; 
   resetPoints: () => void;
   undoPoint: () => void;
   redoPoint: () => void;
@@ -22,6 +24,7 @@ export const usePointsContext = () => {
   }
   return context;
 };
+
 
 const isCoordinateInArray = (coordinate: { latitude: number; longitude: number }, array: { latitude: number; longitude: number }[], epsilon = 0.00001): boolean => {
     return array.some(point =>
@@ -118,7 +121,7 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
           return prevRedo;
       });
-  }, []);
+  }, [setIsComplete]);
 
   const handleSetIsComplete = useCallback((complete: boolean) => {
        console.log(">>> Context: Setting isComplete to", complete);
@@ -156,17 +159,62 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setRedoStack([]);
   }, [points, setIsComplete, setRedoStack]);
 
+  const insertPoint = useCallback((point: Coordinate, index: number) => {
+    setPoints(prevPoints => {
+        if (isComplete) {
+            console.log(">>> Context: insertPoint ignored: shape is complete.");
+            return prevPoints;
+        }
+
+        const newPoints = [...prevPoints];
+        const validIndex = Math.max(0, Math.min(index, newPoints.length));
+        newPoints.splice(validIndex, 0, point); 
+        
+        console.log(`>>> Context: insertPoint called. New point inserted at index ${validIndex}. New length: ${newPoints.length}`);
+
+        return newPoints;
+    });
+      setRedoStack([]);
+  }, [isComplete]);
+
+  const updatePoint = useCallback((index: number, newPoint: Coordinate) => {
+      console.log(`>>> Context: Updating point at index ${index} to:`, newPoint);
+      
+      setPoints(prevPoints => {
+          if (index < 0 || index >= prevPoints.length) {
+              console.error("Invalid index provided for updatePoint:", index);
+              return prevPoints;
+          }
+          const newPoints = [...prevPoints];
+          
+          newPoints[index] = newPoint;
+          
+          if (isComplete && newPoints.length > 2) {
+              if (index === 0) {
+                  newPoints[newPoints.length - 1] = newPoint;
+              } else if (index === newPoints.length - 1) {
+                  newPoints[0] = newPoint;
+              }
+          }
+          return newPoints;
+      });
+  }, [isComplete]);
+
+
   const contextValue = useMemo(() => ({
     points,
     redoStack,
     isComplete,
     addPoint,
+    insertPoint,
+    updatePoint,
     resetPoints,
     undoPoint,
     redoPoint,
     setIsComplete: handleSetIsComplete,
     closePolygon,
-  }), [points, redoStack, isComplete, addPoint, resetPoints, undoPoint, redoPoint, handleSetIsComplete, closePolygon]);
+  }), [points, redoStack, isComplete, addPoint, insertPoint, updatePoint, resetPoints, undoPoint, redoPoint, handleSetIsComplete, closePolygon]);
+
 
   return (
     <PointsContext.Provider value={contextValue}>

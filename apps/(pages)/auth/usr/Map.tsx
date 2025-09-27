@@ -43,10 +43,62 @@ const isCoordinateInArray = (coordinate: { latitude: number; longitude: number }
     );
 };
 
+const findClosestSegmentForInsertion = (
+    touchCoord: Coordinate, 
+    points: Coordinate[], 
+    maxDistance: number = 0.0001
+): { insertionIndex: number; distance: number } | null => {
+    
+    if (points.length < 2) return null;
+
+    let closestDistance = Infinity;
+    let insertionIndex = -1;
+
+    // Iterate through all line segments
+    // We stop at points.length - 1 because the segment is points[i] to points[i+1]
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+
+        // Simplified planar distance calculation (works well for small distances)
+        const dx = p2.longitude - p1.longitude;
+        const dy = p2.latitude - p1.latitude;
+        const sqrLen = dx * dx + dy * dy;
+        
+        if (sqrLen === 0) continue; // Skip identical points
+
+        // Calculate t (projection parameter)
+        let t = ((touchCoord.longitude - p1.longitude) * dx + (touchCoord.latitude - p1.latitude) * dy) / sqrLen;
+        
+        // Clamp t to [0, 1] to ensure the closest point is on the segment (not beyond the endpoints)
+        t = Math.max(0, Math.min(1, t)); 
+
+        // Closest point coordinates on the segment
+        const closestLng = p1.longitude + t * dx;
+        const closestLat = p1.latitude + t * dy;
+
+        // Euclidean distance from tapped point to the closest point on the segment
+        const dLng = touchCoord.longitude - closestLng;
+        const dLat = touchCoord.latitude - closestLat;
+        const currentDistance = Math.sqrt(dLng * dLng + dLat * dLat);
+
+        if (currentDistance < closestDistance) {
+            closestDistance = currentDistance;
+            insertionIndex = i + 1; // Insert AFTER point 'i' (i.e., before point 'i+1')
+        }
+    }
+
+    if (closestDistance < maxDistance) {
+        return { insertionIndex, distance: closestDistance };
+    }
+
+    return null;
+};
+
 export default function Map() {
     const navigation = useNavigation<RootStackNavigationProp>();
 
-    const { points, redoStack, isComplete, addPoint, resetPoints, undoPoint, redoPoint, setIsComplete, closePolygon } = usePointsContext();
+    const { points, redoStack, isComplete, addPoint, resetPoints, undoPoint, redoPoint, setIsComplete, closePolygon, insertPoint, updatePoint} = usePointsContext();
     const { formPhotos, addFormPhoto, removeFormPhoto, clearFormPhotos, pickImageFromLibrary } = usePhotosContext();
 
     const mapRef = useRef<MapView | null>(null);
@@ -93,11 +145,30 @@ export default function Map() {
     };
 
     const handleMapPress = (event: any) => {
-        if (isComplete) { console.log(">>> Map: Map press ignored: shape is complete."); return; }
-        const newCoord = event.nativeEvent.coordinate;
-        const newPoint: Coordinate = { latitude: newCoord.latitude, longitude: newCoord.longitude };
-        console.log(">>> Map: Adding new map press point via context.");
-        addPoint(newPoint);
+        if (isComplete) { 
+        console.log(">>> Map: Map press ignored: shape is complete."); 
+        return; 
+    }
+    
+    const newCoord: Coordinate = event.nativeEvent.coordinate;
+
+    // 1. Check if the press is near an existing polyline segment (requires at least 2 points for a segment)
+    if (points.length >= 2) {
+        // Use a max distance of 0.0001 decimal degrees for segment selection tolerance
+        const segmentData = findClosestSegmentForInsertion(newCoord, points, 0.0001);
+
+        if (segmentData) {
+            // Insertion logic: add the point into the segment
+            console.log(`>>> Map: Tapped near Polyline. Inserting point at index: ${segmentData.insertionIndex}`);
+            // Call the new context function
+            insertPoint(newCoord, segmentData.insertionIndex);
+            return;
+        }
+    }
+    
+    // 2. If not near a polyline segment, treat it as a regular map press (append point)
+    console.log(">>> Map: Adding new regular map press point via context.");
+    addPoint(newCoord);
     };
 
     const handleMarkerPress = (index: number) => {
@@ -338,14 +409,20 @@ export default function Map() {
                 }}
             >
                 {points.map((point, index) => (
-                    <Marker
+                    <Marker draggable
+                        onDrag={(e) => {
+                            updatePoint(index, e.nativeEvent.coordinate);
+                        }}
+                        onDragEnd={(e) => {
+                            updatePoint(index, e.nativeEvent.coordinate);
+                        }}
                         key={`marker-${index}`}
                         coordinate={point}
                         onPress={() => handleMarkerPress(index)}
                         pinColor={Platform.OS !== 'ios' ? 'red' : undefined}
                     >
                         {Platform.OS === 'ios' && (
-                            <View style={localStyles.defaultMarker}>
+                            <View style={localStyles.mapMarker}>
                                 <MaterialCommunityIcons name="map-marker" size={isComplete ? 25 : 30} color={isComplete ? "darkred" : "red"} />
                             </View>
                         )}
@@ -353,7 +430,7 @@ export default function Map() {
                 ))}
 
                 {userLocation && !isCoordinateInArray(userLocation, points.map(p => ({ latitude: p.latitude, longitude: p.longitude }))) && (
-                    <Marker
+                    <Marker draggable
                         key="user-location-marker"
                         coordinate={userLocation}
                         title="My Location"
@@ -514,6 +591,7 @@ export default function Map() {
                                     placeholderTextColor="#3D550C"
                                     value={areaName}
                                     onChangeText={setAreaName}
+                                    multiline={false}
                                 />
                                 <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
                                 <TextInput
@@ -522,7 +600,7 @@ export default function Map() {
                                     placeholderTextColor="#3D550C"
                                     value={areaRegion}
                                     onChangeText={setAreaRegion}
-                                    multiline={true}
+                                    multiline={false}
                                 />
 
                                 <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
@@ -532,7 +610,7 @@ export default function Map() {
                                     placeholderTextColor="#3D550C"
                                     value={areaProvince}
                                     onChangeText={setAreaProvince}
-                                    multiline={true}
+                                    multiline={false}
                                 />
 
                                 <Text style={[Styles.text, localStyles.formLabels]}>Organization</Text>
@@ -542,10 +620,9 @@ export default function Map() {
                                     placeholderTextColor="#3D550C"
                                     value={areaOrganization}
                                     onChangeText={setAreaOrganization}
-                                    multiline={true}
+                                    multiline={false}
                                 />
 
-                                {/* Photo Attachment Section */}
                                 <Text style={[Styles.text, localStyles.formLabels, { marginBottom: 10 }]}>Attach Photos</Text>
                                 <View style={localStyles.photoButtonContainer}>
                                     <TouchableOpacity
@@ -748,19 +825,12 @@ const localStyles = StyleSheet.create({
         textAlign: 'left',
         fontSize: 18,
     },
-    defaultMarker: {
+    mapMarker: {
         padding: 2,
         backgroundColor: 'white',
         borderRadius: 15,
         borderWidth: 1,
         borderColor: 'red',
-    },
-    photoMarker: {
-        padding: 2,
-        backgroundColor: 'white',
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: 'green',
     },
     modalHandle: {
         width: '100%',
