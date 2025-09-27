@@ -329,6 +329,7 @@ export default function Map() {
                 style={{ flex: 1 }}
                 onMapReady={handleMapReady}
                 onPress={handleMapPress}
+                mapType="hybrid"
                 initialRegion={{
                     latitude: 12.8797,
                     longitude: 121.7740,
