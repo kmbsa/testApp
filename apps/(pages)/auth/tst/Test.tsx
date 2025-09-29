@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
 
 // Import the API key from the environment variable.
@@ -47,23 +47,23 @@ const App = () => {
       // Build the query string for the GET request
       const queryString = new URLSearchParams({
         location: `${latitude},${longitude}`,
-        fields: "temperature,humidity,precipitationProbability,windSpeed",  // Request multiple fields
-        units: "metric",
-        timesteps: "1d",  // Daily forecast
-        timezone: "auto",
+        fields: 'temperature,humidity,precipitationProbability,windSpeed', // Request multiple fields
+        units: 'metric',
+        timesteps: '1d', // Daily forecast
+        timezone: 'auto',
         apikey: API_KEY,
       }).toString();
 
-      console.log("Request URL: ", `${endpoint}?${queryString}`)
+      console.log('Request URL: ', `${endpoint}?${queryString}`);
 
       // Make the GET request to the API
       const response = await fetch(`${endpoint}?${queryString}`, {
         headers: {
-          'accept': 'application/json',
+          accept: 'application/json',
         },
       });
-      
-      console.log("Response Status:", response.status); // Log response status
+
+      console.log('Response Status:', response.status); // Log response status
 
       // Check if the response was successful
       if (!response.ok) {
@@ -78,19 +78,20 @@ const App = () => {
       const forecastIntervals = data.data.timelines[0].intervals;
 
       // If you need data for the next 5 days, slice the array
-      const forecastData = forecastIntervals.slice(0, 5).map((interval: any) => ({
-        date: interval.startTime.split('T')[0], // Extract date part from ISO string
-        temperature: interval.values.temperature,
-        precipitationProbability: interval.values.precipitationProbability,
-        humidity: interval.values.humidity,
-        windSpeed: interval.values.windSpeed
-      }));
+      const forecastData = forecastIntervals
+        .slice(0, 5)
+        .map((interval: any) => ({
+          date: interval.startTime.split('T')[0], // Extract date part from ISO string
+          temperature: interval.values.temperature,
+          precipitationProbability: interval.values.precipitationProbability,
+          humidity: interval.values.humidity,
+          windSpeed: interval.values.windSpeed,
+        }));
 
       // Update the weather data state
       setWeatherData(forecastData);
-
     } catch (err: any) {
-      console.error("Failed to fetch weather:", err);
+      console.error('Failed to fetch weather:', err);
       setError(err.message || 'Failed to fetch weather data.');
     } finally {
       setLoading(false);
@@ -99,7 +100,7 @@ const App = () => {
 
   useEffect(() => {
     const lat = 40.7128;
-    const lon = -74.0060;
+    const lon = -74.006;
     fetchWeather(lat, lon);
   }, []);
 
@@ -107,9 +108,9 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>5-Day Weather Forecast</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.refreshButton}
-          onPress={() => fetchWeather(40.7128, -74.0060)}
+          onPress={() => fetchWeather(40.7128, -74.006)}
           disabled={loading}
         >
           <Text style={styles.refreshText}>
@@ -134,10 +135,14 @@ const App = () => {
           {weatherData.map((day, index) => (
             <View style={styles.weatherCard} key={index}>
               <Text style={styles.date}>{day.date}</Text>
-              <Text style={styles.temperature}>{Math.round(day.temperature)}°C</Text>
+              <Text style={styles.temperature}>
+                {Math.round(day.temperature)}°C
+              </Text>
               <View style={styles.dataRow}>
                 <Text style={styles.label}>Wind:</Text>
-                <Text style={styles.value}>{Math.round(day.windSpeed)} m/s</Text>
+                <Text style={styles.value}>
+                  {Math.round(day.windSpeed)} m/s
+                </Text>
               </View>
               <View style={styles.dataRow}>
                 <Text style={styles.label}>Humidity:</Text>
@@ -145,7 +150,9 @@ const App = () => {
               </View>
               <View style={styles.dataRow}>
                 <Text style={styles.label}>Precipitation:</Text>
-                <Text style={styles.value}>{Math.round(day.precipitationProbability)}%</Text>
+                <Text style={styles.value}>
+                  {Math.round(day.precipitationProbability)}%
+                </Text>
               </View>
             </View>
           ))}

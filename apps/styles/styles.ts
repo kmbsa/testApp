@@ -1,7 +1,6 @@
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
-const isSmallDevice = width < 375;
 const responsiveFormPadding = width * 0.06;
 
 const Styles = StyleSheet.create({
@@ -24,7 +23,7 @@ const Styles = StyleSheet.create({
   responsiveFormContainer: {
     width: '95%',
     maxWidth: 500,
-    paddingHorizontal: responsiveFormPadding, 
+    paddingHorizontal: responsiveFormPadding,
     paddingVertical: responsiveFormPadding,
     alignSelf: 'center',
   },
@@ -34,7 +33,7 @@ const Styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    color: "#F4D03F",
+    color: '#F4D03F',
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
@@ -86,7 +85,7 @@ const Styles = StyleSheet.create({
     fontWeight: 'bold',
     textDecorationLine: 'underline',
   },
-  welcomeText: { 
+  welcomeText: {
     fontSize: 26,
     fontWeight: 'bold',
     color: '#3D550C',
@@ -129,17 +128,17 @@ const Styles = StyleSheet.create({
     color: '#F4D03F',
   },
   background: {
-        backgroundColor: '#F5F5DC',
-    },
+    backgroundColor: '#F5F5DC',
+  },
   header: {
-        backgroundColor: '#3D550C',
-    },
+    backgroundColor: '#3D550C',
+  },
   headerText: {
-        color: '#F4D03F',
-    },
+    color: '#F4D03F',
+  },
   itemBackground: {
-        backgroundColor: '#F9F9E0',
-    }
+    backgroundColor: '#F9F9E0',
+  },
 });
 
 export default Styles;
