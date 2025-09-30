@@ -1,20 +1,20 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Platform,
-  View,
-  TextInput,
-  Modal,
-  Text,
-  TouchableWithoutFeedback,
-  Keyboard,
-  TouchableOpacity,
-  Alert,
-  StyleSheet,
-  Image,
-  ScrollView,
-  PanResponder,
-  Animated,
-  ActivityIndicator,
+    Platform,
+    View,
+    TextInput,
+    Modal,
+    Text,
+    TouchableWithoutFeedback,
+    Keyboard,
+    TouchableOpacity,
+    Alert,
+    StyleSheet,
+    Image,
+    ScrollView,
+    PanResponder,
+    Animated,
+    ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
@@ -26,8 +26,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { API_URL } from '@env';
 import type {
-  RootStackNavigationProp,
-  Coordinate,
+    RootStackNavigationProp,
+    Coordinate,
 } from '../../../navigation/types';
 
 import { usePointsContext } from '../../../context/PointsContext';
@@ -38,1061 +38,1207 @@ import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 
 const isCoordinateInArray = (
-  coordinate: { latitude: number; longitude: number },
-  array: { latitude: number; longitude: number }[],
-  epsilon = 0.00001,
+    coordinate: { latitude: number; longitude: number },
+    array: { latitude: number; longitude: number }[],
+    epsilon = 0.00001,
 ): boolean => {
-  return array.some(
-    (point) =>
-      Math.abs(point.latitude - coordinate.latitude) < epsilon &&
-      Math.abs(point.longitude - coordinate.longitude) < epsilon,
-  );
+    return array.some(
+        (point) =>
+            Math.abs(point.latitude - coordinate.latitude) < epsilon &&
+            Math.abs(point.longitude - coordinate.longitude) < epsilon,
+    );
 };
 
 const findClosestSegmentForInsertion = (
-  touchCoord: Coordinate,
-  points: Coordinate[],
-  maxDistance: number = 0.0001,
+    touchCoord: Coordinate,
+    points: Coordinate[],
+    maxDistance: number = 0.0001,
 ): { insertionIndex: number; distance: number } | null => {
-  if (points.length < 2) return null;
+    if (points.length < 2) return null;
 
-  let closestDistance = Infinity;
-  let insertionIndex = -1;
+    let closestDistance = Infinity;
+    let insertionIndex = -1;
 
-  // Iterate through all line segments
-  // We stop at points.length - 1 because the segment is points[i] to points[i+1]
-  for (let i = 0; i < points.length - 1; i++) {
-    const p1 = points[i];
-    const p2 = points[i + 1];
+    // Iterate through all line segments
+    // We stop at points.length - 1 because the segment is points[i] to points[i+1]
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
 
-    // Simplified planar distance calculation (works well for small distances)
-    const dx = p2.longitude - p1.longitude;
-    const dy = p2.latitude - p1.latitude;
-    const sqrLen = dx * dx + dy * dy;
+        // Simplified planar distance calculation (works well for small distances)
+        const dx = p2.longitude - p1.longitude;
+        const dy = p2.latitude - p1.latitude;
+        const sqrLen = dx * dx + dy * dy;
 
-    if (sqrLen === 0) continue; // Skip identical points
+        if (sqrLen === 0) continue; // Skip identical points
 
-    // Calculate t (projection parameter)
-    let t =
-      ((touchCoord.longitude - p1.longitude) * dx +
-        (touchCoord.latitude - p1.latitude) * dy) /
-      sqrLen;
+        // Calculate t (projection parameter)
+        let t =
+            ((touchCoord.longitude - p1.longitude) * dx +
+                (touchCoord.latitude - p1.latitude) * dy) /
+            sqrLen;
 
-    // Clamp t to [0, 1] to ensure the closest point is on the segment (not beyond the endpoints)
-    t = Math.max(0, Math.min(1, t));
+        // Clamp t to [0, 1] to ensure the closest point is on the segment (not beyond the endpoints)
+        t = Math.max(0, Math.min(1, t));
 
-    // Closest point coordinates on the segment
-    const closestLng = p1.longitude + t * dx;
-    const closestLat = p1.latitude + t * dy;
+        // Closest point coordinates on the segment
+        const closestLng = p1.longitude + t * dx;
+        const closestLat = p1.latitude + t * dy;
 
-    // Euclidean distance from tapped point to the closest point on the segment
-    const dLng = touchCoord.longitude - closestLng;
-    const dLat = touchCoord.latitude - closestLat;
-    const currentDistance = Math.sqrt(dLng * dLng + dLat * dLat);
+        // Euclidean distance from tapped point to the closest point on the segment
+        const dLng = touchCoord.longitude - closestLng;
+        const dLat = touchCoord.latitude - closestLat;
+        const currentDistance = Math.sqrt(dLng * dLng + dLat * dLat);
 
-    if (currentDistance < closestDistance) {
-      closestDistance = currentDistance;
-      insertionIndex = i + 1; // Insert AFTER point 'i' (i.e., before point 'i+1')
+        if (currentDistance < closestDistance) {
+            closestDistance = currentDistance;
+            insertionIndex = i + 1; // Insert AFTER point 'i' (i.e., before point 'i+1')
+        }
     }
-  }
 
-  if (closestDistance < maxDistance) {
-    return { insertionIndex, distance: closestDistance };
-  }
+    if (closestDistance < maxDistance) {
+        return { insertionIndex, distance: closestDistance };
+    }
 
-  return null;
+    return null;
 };
 
 export default function Map() {
-  const navigation = useNavigation<RootStackNavigationProp>();
+    const navigation = useNavigation<RootStackNavigationProp>();
 
-  const {
-    points,
-    redoStack,
-    isComplete,
-    addPoint,
-    resetPoints,
-    undoPoint,
-    redoPoint,
-    setIsComplete,
-    closePolygon,
-    insertPoint,
-    updatePoint,
-  } = usePointsContext();
-  const {
-    formPhotos,
-    addFormPhoto,
-    removeFormPhoto,
-    clearFormPhotos,
-    pickImageFromLibrary,
-  } = usePhotosContext();
-
-  const mapRef = useRef<MapView | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-
-  const [modalVisible, setModalVisible] = useState(false);
-  const [areaName, setAreaName] = useState('');
-  const [areaRegion, setAreaRegion] = useState('');
-  const [areaProvince, setAreaProvince] = useState('');
-  const [areaOrganization, setAreaOrganization] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-
-  const { userToken, userData, signOut } = useAuth();
-
-  const panY = useRef(new Animated.Value(0)).current;
-  const initialModalHeight = useRef(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        if (modalVisible) {
-          setModalVisible(false);
-        }
-        panY.setValue(0);
-      };
-    }, [modalVisible, panY]),
-  );
-
-  useEffect(() => {
-    console.log('### FINAL Map Points state changed (from Context):', points);
-  }, [points]);
-
-  const handleMapReady = () => {
-    setMapLoaded(true);
-    if (mapRef.current && points.length === 0) {
-      console.log(
-        '>>> Map: Map ready, points empty. Fitting to default bounds.',
-      );
-      mapRef.current.fitToCoordinates(
-        [
-          { latitude: 5.0, longitude: 115.0 },
-          { latitude: 19.0, longitude: 127.0 },
-        ],
-        {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        },
-      );
-    } else if (mapRef.current && points.length > 0) {
-      console.log(
-        `>>> Map: Map ready, ${points.length} points exist (from context). Fitting to points.`,
-      );
-      mapRef.current.fitToCoordinates(points, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
-    }
-  };
-
-  const handleMapPress = (event: any) => {
-    if (isComplete) {
-      console.log('>>> Map: Map press ignored: shape is complete.');
-      return;
-    }
-
-    const newCoord: Coordinate = event.nativeEvent.coordinate;
-
-    // 1. Check if the press is near an existing polyline segment (requires at least 2 points for a segment)
-    if (points.length >= 2) {
-      // Use a max distance of 0.0001 decimal degrees for segment selection tolerance
-      const segmentData = findClosestSegmentForInsertion(
-        newCoord,
+    const {
         points,
-        0.0001,
-      );
+        redoStack,
+        isComplete,
+        addPoint,
+        resetPoints,
+        undoPoint,
+        redoPoint,
+        setIsComplete,
+        closePolygon,
+        insertPoint,
+        updatePoint,
+    } = usePointsContext();
+    const {
+        formPhotos,
+        addFormPhoto,
+        removeFormPhoto,
+        clearFormPhotos,
+        pickImageFromLibrary,
+    } = usePhotosContext();
 
-      if (segmentData) {
-        // Insertion logic: add the point into the segment
-        console.log(
-          `>>> Map: Tapped near Polyline. Inserting point at index: ${segmentData.insertionIndex}`,
-        );
-        // Call the new context function
-        insertPoint(newCoord, segmentData.insertionIndex);
-        return;
-      }
-    }
+    const mapRef = useRef<MapView | null>(null);
+    const [mapLoaded, setMapLoaded] = useState(false);
 
-    // 2. If not near a polyline segment, treat it as a regular map press (append point)
-    console.log('>>> Map: Adding new regular map press point via context.');
-    addPoint(newCoord);
-  };
+    const [modalVisible, setModalVisible] = useState(false);
+    const [areaName, setAreaName] = useState('');
+    const [areaRegion, setAreaRegion] = useState('');
+    const [areaProvince, setAreaProvince] = useState('');
+    const [areaOrganization, setAreaOrganization] = useState('');
 
-  const handleMarkerPress = (index: number) => {
-    if (isComplete) {
-      const tappedPoint = points[index];
-      console.log('>>> Map: Tapped marker on completed shape:', tappedPoint);
-      Alert.alert(
-        'Point Details',
-        `Lat: ${tappedPoint.latitude.toFixed(4)}, Lng: ${tappedPoint.longitude.toFixed(4)}`,
-      );
-      return;
-    }
+    // NEW STATES for Topographical Data and Modal Page Navigation
+    const [areaSlope, setAreaSlope] = useState('');
+    const [areaMasl, setAreaMasl] = useState('');
+    const [currentPage, setCurrentPage] = useState(1); // 1: Area Details, 2: Topographical
+    // END NEW STATES
 
-    if (points.length > 1 && index === 0) {
-      console.log(
-        '>>> Map: Tapped first marker to complete shape. Calling context.closePolygon()',
-      );
-      closePolygon();
-    } else {
-      console.log(`>>> Map: Tapped marker at index ${index} while plotting.`);
-    }
-  };
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleUndo = () => {
-    if (isComplete) return;
-    if (points.length === 1) {
-      setUserLocation(null);
-    }
-    undoPoint();
-  };
+    const [userLocation, setUserLocation] = useState<{
+        latitude: number;
+        longitude: number;
+    } | null>(null);
 
-  const handleRedo = () => {
-    if (isComplete) return;
-    redoPoint();
-  };
+    const { userToken, userData, signOut } = useAuth();
 
-  const getCurrentUserLocation = async () => {
-    if (isComplete) {
-      Alert.alert(
-        'Shape Already Completed',
-        'Cannot add location points after completing the shape.',
-      );
-      return;
-    }
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Location Permission Denied',
-        'Please enable location services to mark your current location.',
-        [{ text: 'OK' }],
-      );
-      return;
-    }
-    let location = await Location.getCurrentPositionAsync({});
-    const userCoordinate: Coordinate = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
+    const panY = useRef(new Animated.Value(0)).current;
+    const initialModalHeight = useRef(0);
+    // NEW Ref for ScrollView to scroll on page change
+    const scrollViewRef = useRef<ScrollView | null>(null);
+
+    useFocusEffect(
+        useCallback(() => {
+            return () => {
+                if (modalVisible) {
+                    setModalVisible(false);
+                }
+                panY.setValue(0);
+                setCurrentPage(1); // Reset page on exit
+            };
+        }, [modalVisible, panY]),
+    );
+
+    useEffect(() => {
+        console.log('### FINAL Map Points state changed (from Context):', points);
+    }, [points]);
+
+    const handleMapReady = () => {
+        setMapLoaded(true);
+        if (mapRef.current && points.length === 0) {
+            console.log(
+                '>>> Map: Map ready, points empty. Fitting to default bounds.',
+            );
+            mapRef.current.fitToCoordinates(
+                [
+                    { latitude: 5.0, longitude: 115.0 },
+                    { latitude: 19.0, longitude: 127.0 },
+                ],
+                {
+                    edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+                    animated: true,
+                },
+            );
+        } else if (mapRef.current && points.length > 0) {
+            console.log(
+                `>>> Map: Map ready, ${points.length} points exist (from context). Fitting to points.`,
+            );
+            mapRef.current.fitToCoordinates(points, {
+                edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+                animated: true,
+            });
+        }
     };
 
-    setUserLocation(userCoordinate);
+    const handleMapPress = (event: any) => {
+        if (isComplete) {
+            console.log('>>> Map: Map press ignored: shape is complete.');
+            return;
+        }
 
-    console.log('>>> Map: Adding new user location point via context.');
-    addPoint(userCoordinate);
-    mapRef.current?.animateToRegion({
-      latitude: userCoordinate.latitude,
-      longitude: userCoordinate.longitude,
-      latitudeDelta: 0.02,
-      longitudeDelta: 0.02,
-    });
-  };
+        const newCoord: Coordinate = event.nativeEvent.coordinate;
 
-  const handleCompletePlotting = () => {
-    if (isComplete) {
-      Alert.alert(
-        'Shape Already Completed',
-        'You have already finished plotting points.',
-      );
-      return;
-    }
-    const uniquePointsCount = new Set(
-      points.map((p) => `${p.latitude},${p.longitude}`),
-    ).size;
-    if (uniquePointsCount < 3) {
-      Alert.alert(
-        'Not Enough Points',
-        'Please add at least 3 unique points before completing the shape.',
-      );
-      return;
-    }
+        // 1. Check if the press is near an existing polyline segment (requires at least 2 points for a segment)
+        if (points.length >= 2) {
+            // Use a max distance of 0.0001 decimal degrees for segment selection tolerance
+            const segmentData = findClosestSegmentForInsertion(
+                newCoord,
+                points,
+                0.0001,
+            );
 
-    console.log(
-      '>>> Map: Completing shape via button press. Calling context.closePolygon()',
-    );
-    closePolygon();
+            if (segmentData) {
+                // Insertion logic: add the point into the segment
+                console.log(
+                    `>>> Map: Tapped near Polyline. Inserting point at index: ${segmentData.insertionIndex}`,
+                );
+                // Call the new context function
+                insertPoint(newCoord, segmentData.insertionIndex);
+                return;
+            }
+        }
 
-    Alert.alert(
-      'Shape Completed',
-      'Your polygon has been drawn. You can now fill out the form for this area.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setModalVisible(true);
-            panY.setValue(0);
-          },
-        },
-      ],
-    );
-  };
+        // 2. If not near a polyline segment, treat it as a regular map press (append point)
+        console.log('>>> Map: Adding new regular map press point via context.');
+        addPoint(newCoord);
+    };
 
-  const handleOpenForm = () => {
-    if (!isComplete) {
-      Alert.alert(
-        'Shape Not Complete',
-        'Please complete plotting the shape before filling out the form.',
-      );
-      return;
-    }
-    setModalVisible(true);
-    panY.setValue(0);
-  };
+    const handleMarkerPress = (index: number) => {
+        if (isComplete) {
+            const tappedPoint = points[index];
+            console.log('>>> Map: Tapped marker on completed shape:', tappedPoint);
+            Alert.alert(
+                'Point Details',
+                `Lat: ${tappedPoint.latitude.toFixed(4)}, Lng: ${tappedPoint.longitude.toFixed(4)}`,
+            );
+            return;
+        }
 
-  const handleClearMap = () => {
-    Alert.alert(
-      'Clear Map',
-      'Are you sure you want to clear all plotted points?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          onPress: () => {
-            console.log('>>> Map: Clearing map via context resetPoints.');
+        if (points.length > 1 && index === 0) {
+            console.log(
+                '>>> Map: Tapped first marker to complete shape. Calling context.closePolygon()',
+            );
+            closePolygon();
+        } else {
+            console.log(`>>> Map: Tapped marker at index ${index} while plotting.`);
+        }
+    };
+
+    const handleUndo = () => {
+        if (isComplete) return;
+        if (points.length === 1) {
+            setUserLocation(null);
+        }
+        undoPoint();
+    };
+
+    const handleRedo = () => {
+        if (isComplete) return;
+        redoPoint();
+    };
+
+    const getCurrentUserLocation = async () => {
+        if (isComplete) {
+            Alert.alert(
+                'Shape Already Completed',
+                'Cannot add location points after completing the shape.',
+            );
+            return;
+        }
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert(
+                'Location Permission Denied',
+                'Please enable location services to mark your current location.',
+                [{ text: 'OK' }],
+            );
+            return;
+        }
+        let location = await Location.getCurrentPositionAsync({});
+        const userCoordinate: Coordinate = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+        };
+
+        setUserLocation(userCoordinate);
+
+        console.log('>>> Map: Adding new user location point via context.');
+        addPoint(userCoordinate);
+        mapRef.current?.animateToRegion({
+            latitude: userCoordinate.latitude,
+            longitude: userCoordinate.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+        });
+    };
+
+    const handleCompletePlotting = () => {
+        if (isComplete) {
+            Alert.alert(
+                'Shape Already Completed',
+                'You have already finished plotting points.',
+            );
+            return;
+        }
+        const uniquePointsCount = new Set(
+            points.map((p) => `${p.latitude},${p.longitude}`),
+        ).size;
+        if (uniquePointsCount < 3) {
+            Alert.alert(
+                'Not Enough Points',
+                'Please add at least 3 unique points before completing the shape.',
+            );
+            return;
+        }
+
+        console.log(
+            '>>> Map: Completing shape via button press. Calling context.closePolygon()',
+        );
+        closePolygon();
+
+        Alert.alert(
+            'Shape Completed',
+            'Your polygon has been drawn. You can now fill out the form for this area.',
+            [
+                {
+                    text: 'OK',
+                    onPress: () => {
+                        setModalVisible(true);
+                        panY.setValue(0);
+                        setCurrentPage(1); // Ensure it opens on page 1
+                    },
+                },
+            ],
+        );
+    };
+
+    const handleOpenForm = () => {
+        if (!isComplete) {
+            Alert.alert(
+                'Shape Not Complete',
+                'Please complete plotting the shape before filling out the form.',
+            );
+            return;
+        }
+        setModalVisible(true);
+        panY.setValue(0);
+        setCurrentPage(1); // Ensure it opens on page 1
+    };
+
+    const handleClearMap = () => {
+        Alert.alert(
+            'Clear Map',
+            'Are you sure you want to clear all plotted points?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Clear',
+                    onPress: () => {
+                        console.log('>>> Map: Clearing map via context resetPoints.');
+                        resetPoints();
+                        setModalVisible(false);
+                        setAreaName('');
+                        setAreaRegion('');
+                        setAreaProvince('');
+                        setAreaOrganization('');
+                        // NEW RESETS
+                        setAreaSlope('');
+                        setAreaMasl('');
+                        setCurrentPage(1);
+                        // END NEW RESETS
+                        setUserLocation(null);
+                        panY.setValue(0);
+                    },
+                    style: 'destructive',
+                },
+            ],
+            { cancelable: true },
+        );
+    };
+
+    const handleCameraPress = async () => {
+        console.log(">>> Map: Navigating to Camera page ('Camera').");
+        navigation.navigate('Camera');
+    };
+
+    const handlePhotoLibraryPress = async () => {
+        console.log('>>> Map: Picking image from library.');
+        await pickImageFromLibrary();
+    };
+
+    const handleSubmitForm = async () => {
+        if (isSubmitting) return;
+
+        // CHECK: Must be on the final page (page 2) to submit
+        if (currentPage !== 2) {
+            Alert.alert('Incomplete Form', 'Please proceed to the Topographical Data page.');
+            return;
+        }
+
+        if (
+            !areaName.trim() ||
+            !areaRegion.trim() ||
+            !areaProvince.trim() ||
+            !areaOrganization.trim() ||
+            !areaSlope.trim() || // NEW VALIDATION
+            !areaMasl.trim() // NEW VALIDATION
+        ) {
+            Alert.alert(
+                'Missing Information',
+                'Please fill in all required form fields (Area Name, Region, Province, Organization, Slope, and Mean Average Sea Level).',
+            );
+            return;
+        }
+
+        const currentUserId = userData?.user_id;
+        if (!currentUserId) {
+            Alert.alert(
+                'Authentication Error',
+                'User ID not found. Please log in again.',
+            );
+
+            await signOut();
+            return;
+        }
+
+        if (!API_URL) {
+            Alert.alert(
+                'Configuration Error',
+                'API_URL environment variable is not set.',
+            );
+            console.error('API_URL is undefined!');
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        const areaData = {
+            user_id: currentUserId,
+            name: areaName,
+            region: areaRegion,
+            province: areaProvince,
+            organization: areaOrganization,
+            slope: areaSlope, // NEW FIELD
+            masl: areaMasl, // NEW FIELD
+            coordinates: points,
+            photos: formPhotos.map((p) => ({
+                base64: p.base64,
+                mimeType: p.mimeType,
+                filename: p.filename,
+            })),
+        };
+
+        console.log(
+            'Attempting to submit data:',
+            JSON.stringify(areaData, null, 2),
+        );
+
+        try {
+            const response = await fetch(`${API_URL}/area`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${userToken}`,
+                },
+                body: JSON.stringify(areaData),
+            });
+
+            if (response.status === 401 || response.status === 403) {
+                Alert.alert(
+                    'Session Expired',
+                    'Your session has expired. Please log in again.',
+                );
+                await signOut();
+                return;
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Server error:', response.status, errorText);
+                Alert.alert(
+                    'Submission Failed',
+                    `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`,
+                );
+                return;
+            }
+
+            const responseData = await response.json();
+            console.log('Server response:', responseData);
+            Alert.alert('Success!', 'Area details submitted successfully.');
+
             resetPoints();
-            setModalVisible(false);
+            clearFormPhotos();
             setAreaName('');
             setAreaRegion('');
             setAreaProvince('');
             setAreaOrganization('');
-            setUserLocation(null);
-            panY.setValue(0);
-          },
-          style: 'destructive',
-        },
-      ],
-      { cancelable: true },
-    );
-  };
-
-  const handleCameraPress = async () => {
-    console.log(">>> Map: Navigating to Camera page ('Camera').");
-    navigation.navigate('Camera');
-  };
-
-  const handlePhotoLibraryPress = async () => {
-    console.log('>>> Map: Picking image from library.');
-    await pickImageFromLibrary();
-  };
-
-  const handleSubmitForm = async () => {
-    if (isSubmitting) return;
-
-    if (
-      !areaName.trim() ||
-      !areaRegion.trim() ||
-      !areaProvince.trim() ||
-      !areaOrganization.trim()
-    ) {
-      Alert.alert(
-        'Missing Information',
-        'Please fill in all required form fields (Area Name, Region, Province, Organization).',
-      );
-      return;
-    }
-
-    const currentUserId = userData?.user_id;
-    if (!currentUserId) {
-      Alert.alert(
-        'Authentication Error',
-        'User ID not found. Please log in again.',
-      );
-
-      await signOut();
-      return;
-    }
-
-    if (!API_URL) {
-      Alert.alert(
-        'Configuration Error',
-        'API_URL environment variable is not set.',
-      );
-      console.error('API_URL is undefined!');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    const areaData = {
-      user_id: currentUserId,
-      name: areaName,
-      region: areaRegion,
-      province: areaProvince,
-      organization: areaOrganization,
-      coordinates: points,
-      photos: formPhotos.map((p) => ({
-        base64: p.base64,
-        mimeType: p.mimeType,
-        filename: p.filename,
-      })),
-    };
-
-    console.log(
-      'Attempting to submit data:',
-      JSON.stringify(areaData, null, 2),
-    );
-
-    try {
-      const response = await fetch(`${API_URL}/area`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`,
-        },
-        body: JSON.stringify(areaData),
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        Alert.alert(
-          'Session Expired',
-          'Your session has expired. Please log in again.',
-        );
-        await signOut();
-        return;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error:', response.status, errorText);
-        Alert.alert(
-          'Submission Failed',
-          `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`,
-        );
-        return;
-      }
-
-      const responseData = await response.json();
-      console.log('Server response:', responseData);
-      Alert.alert('Success!', 'Area details submitted successfully.');
-
-      resetPoints();
-      clearFormPhotos();
-      setAreaName('');
-      setAreaRegion('');
-      setAreaProvince('');
-      setModalVisible(false);
-      panY.setValue(0);
-      setUserLocation(null);
-    } catch (error) {
-      console.error('Network or submission error:', error);
-      Alert.alert(
-        'Error',
-        `Could not connect to the server or submit data. Please check your network connection.\nDetails: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (event, gestureState) => {
-        if (gestureState.dy > 0) {
-          panY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (event, gestureState) => {
-        if (
-          gestureState.dy > initialModalHeight.current * 0.3 ||
-          gestureState.vy > 0.5
-        ) {
-          Animated.timing(panY, {
-            toValue: initialModalHeight.current,
-            duration: 300,
-            useNativeDriver: true,
-          }).start(() => {
+            // NEW RESETS
+            setAreaSlope('');
+            setAreaMasl('');
+            setCurrentPage(1);
+            // END NEW RESETS
             setModalVisible(false);
             panY.setValue(0);
-          });
-        } else {
-          Animated.spring(panY, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
+            setUserLocation(null);
+        } catch (error) {
+            console.error('Network or submission error:', error);
+            Alert.alert(
+                'Error',
+                `Could not connect to the server or submit data. Please check your network connection.\nDetails: ${error instanceof Error ? error.message : String(error)}`,
+            );
+        } finally {
+            setIsSubmitting(false);
         }
-      },
-    }),
-  ).current;
+    };
 
-  return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <MapView
-        ref={mapRef}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        style={{ flex: 1 }}
-        onMapReady={handleMapReady}
-        onPress={handleMapPress}
-        mapType="hybrid"
-        initialRegion={{
-          latitude: 12.8797,
-          longitude: 121.774,
-          latitudeDelta: 10.0,
-          longitudeDelta: 10.0,
-        }}
-      >
-        {points.map((point, index) => (
-          <Marker
-            draggable
-            onDrag={(e) => {
-              updatePoint(index, e.nativeEvent.coordinate);
-            }}
-            onDragEnd={(e) => {
-              updatePoint(index, e.nativeEvent.coordinate);
-            }}
-            key={`marker-${index}`}
-            coordinate={point}
-            onPress={() => handleMarkerPress(index)}
-            pinColor={Platform.OS !== 'ios' ? 'red' : undefined}
-          >
-            {Platform.OS === 'ios' && (
-              <View style={localStyles.mapMarker}>
-                <MaterialCommunityIcons
-                  name="map-marker"
-                  size={isComplete ? 25 : 30}
-                  color={isComplete ? 'darkred' : 'red'}
-                />
-              </View>
-            )}
-          </Marker>
-        ))}
-
-        {userLocation &&
-          !isCoordinateInArray(
-            userLocation,
-            points.map((p) => ({
-              latitude: p.latitude,
-              longitude: p.longitude,
-            })),
-          ) && (
-            <Marker
-              draggable
-              key="user-location-marker"
-              coordinate={userLocation}
-              title="My Location"
-              pinColor={Platform.OS !== 'ios' ? 'blue' : undefined}
-            >
-              {Platform.OS === 'ios' && (
-                <MaterialCommunityIcons
-                  name="crosshairs-gps"
-                  size={30}
-                  color="blue"
-                />
-              )}
-            </Marker>
-          )}
-
-        {points.length > 1 && (
-          <Polyline coordinates={points} strokeWidth={3} strokeColor="blue" />
-        )}
-      </MapView>
-
-      <SafeAreaView style={localStyles.backButtonContainer}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Home')}
-          style={localStyles.backButton}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={30}
-            color={Styles.buttonText.color}
-          />
-        </TouchableOpacity>
-      </SafeAreaView>
-
-      <SafeAreaView style={localStyles.undoRedoClearContainer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={handleClearMap}
-            disabled={points.length === 0}
-            style={[
-              localStyles.clearButton,
-              {
-                backgroundColor:
-                  points.length > 0
-                    ? Styles.button.backgroundColor
-                    : Styles.inputFields.backgroundColor,
-                padding: 8,
-                borderRadius: 20,
-              },
-            ]}
-          >
-            <Ionicons
-              name="trash-outline"
-              size={30}
-              color={points.length > 0 ? 'black' : 'grey'}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleUndo}
-            disabled={points.length === 0 || isComplete}
-            style={{
-              backgroundColor:
-                points.length > 0 && !isComplete
-                  ? Styles.button.backgroundColor
-                  : Styles.inputFields.backgroundColor,
-              padding: 8,
-              borderRadius: 20,
-              marginRight: 10,
-            }}
-          >
-            <EvilIcons
-              name="undo"
-              size={30}
-              color={points.length > 0 && !isComplete ? 'black' : 'grey'}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleRedo}
-            disabled={redoStack.length === 0 || isComplete}
-            style={{
-              backgroundColor:
-                redoStack.length > 0 && !isComplete
-                  ? Styles.button.backgroundColor
-                  : Styles.inputFields.backgroundColor,
-              padding: 8,
-              borderRadius: 20,
-            }}
-          >
-            <EvilIcons
-              name="redo"
-              size={30}
-              color={redoStack.length > 0 && !isComplete ? 'black' : 'grey'}
-            />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-
-      {/* Forms Button after completing */}
-      {isComplete && (
-        <TouchableOpacity
-          style={[Styles.button, localStyles.openFormButton]}
-          onPress={handleOpenForm}
-        >
-          <Ionicons
-            name="document-text-outline"
-            size={24}
-            color={Styles.buttonText.color}
-            style={{ marginRight: 5 }}
-          />
-          <Text style={Styles.buttonText}>Open Form</Text>
-        </TouchableOpacity>
-      )}
-
-      {!isComplete && (
-        <TouchableOpacity
-          style={[
-            Styles.button,
-            localStyles.openFormButton,
-            {
-              opacity:
-                new Set(points.map((p) => `${p.latitude},${p.longitude}`))
-                  .size >= 3
-                  ? 1
-                  : 0.5,
-            },
-          ]}
-          onPress={handleCompletePlotting}
-          disabled={
-            new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3
-          }
-        >
-          <Text style={Styles.buttonText}>Complete Shape</Text>
-        </TouchableOpacity>
-      )}
-
-      <TouchableOpacity
-        style={[
-          Styles.button,
-          {
-            position: 'absolute',
-            bottom: 60,
-            left: 20,
-            right: 20,
-            width: undefined,
-            marginTop: 0,
-            alignSelf: 'center',
-            opacity: isComplete ? 0.5 : 1,
-          },
-        ]}
-        onPress={getCurrentUserLocation}
-        disabled={isComplete}
-      >
-        <Text style={Styles.buttonText}>Mark My Location</Text>
-      </TouchableOpacity>
-
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <Animated.View
-              style={[
-                Styles.formBox,
-                {
-                  width: '100%',
-                  minHeight: '60%',
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  paddingHorizontal: 20,
-                  paddingVertical: 20,
-                  transform: [{ translateY: panY }],
-                },
-              ]}
-              onLayout={(event) => {
-                if (initialModalHeight.current === 0) {
-                  initialModalHeight.current = event.nativeEvent.layout.height;
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderMove: (event, gestureState) => {
+                if (gestureState.dy > 0) {
+                    panY.setValue(gestureState.dy);
                 }
-              }}
-            >
-              {/* Draggable indicator/header */}
-              <View
-                style={localStyles.modalHandle}
-                {...panResponder.panHandlers}
-              >
-                <View style={localStyles.modalHandleBar} />
-              </View>
+            },
+            onPanResponderRelease: (event, gestureState) => {
+                if (
+                    gestureState.dy > initialModalHeight.current * 0.3 ||
+                    gestureState.vy > 0.5
+                ) {
+                    Animated.timing(panY, {
+                        toValue: initialModalHeight.current,
+                        duration: 300,
+                        useNativeDriver: true,
+                    }).start(() => {
+                        setModalVisible(false);
+                        panY.setValue(0);
+                        setCurrentPage(1); // Reset page on swipe close
+                    });
+                } else {
+                    Animated.spring(panY, {
+                        toValue: 0,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            },
+        }),
+    ).current;
 
-              <ScrollView keyboardShouldPersistTaps="handled">
+    const renderCancelButton = () => (
+        <TouchableOpacity
+            style={{ marginTop: 10 }}
+            onPress={() => {
+                setModalVisible(false);
+                panY.setValue(0);
+                setCurrentPage(1);
+            }}
+            disabled={isSubmitting}
+        >
+            <View style={{ justifyContent: 'center' }}>
                 <Text
-                  style={[
+                    style={[
+                        Styles.text,
+                        { color: '#555', textAlign: 'center' },
+                    ]}
+                >
+                    Cancel
+                </Text>
+            </View>
+        </TouchableOpacity>
+    );
+
+    // --- Modal Page 1: Area Details & Photos ---
+    const renderAreaDetailsForm = () => (
+        <View>
+            <Text
+                style={[
                     Styles.text,
                     {
-                      marginBottom: 15,
-                      textAlign: 'center',
-                      fontSize: 18,
-                      fontWeight: 'bold',
+                        marginBottom: 15,
+                        textAlign: 'center',
+                        fontSize: 18,
+                        fontWeight: 'bold',
                     },
-                  ]}
-                >
-                  Enter Location Details
-                </Text>
-                <Text style={[Styles.text, localStyles.formLabels]}>
-                  Area Name
-                </Text>
-                <TextInput
-                  style={[
+                ]}
+            >
+                Area Details (1/2)
+            </Text>
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Area Name
+            </Text>
+            <TextInput
+                style={[
                     Styles.inputFields,
                     { marginBottom: 15, width: '100%' },
-                  ]}
-                  placeholder="Place Name"
-                  placeholderTextColor="#3D550C"
-                  value={areaName}
-                  onChangeText={setAreaName}
-                  multiline={false}
-                />
-                <Text style={[Styles.text, localStyles.formLabels]}>
-                  Region
-                </Text>
-                <TextInput
-                  style={[
+                ]}
+                placeholder="Place Name"
+                placeholderTextColor="#8b8b8bff"
+                value={areaName}
+                onChangeText={setAreaName}
+                multiline={false}
+            />
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Region
+            </Text>
+            <TextInput
+                style={[
                     Styles.inputFields,
                     { marginBottom: 20, width: '100%' },
-                  ]}
-                  placeholder="Location Details"
-                  placeholderTextColor="#3D550C"
-                  value={areaRegion}
-                  onChangeText={setAreaRegion}
-                  multiline={false}
-                />
+                ]}
+                placeholder="Location Details"
+                placeholderTextColor="#8b8b8bff"
+                value={areaRegion}
+                onChangeText={setAreaRegion}
+                multiline={false}
+            />
 
-                <Text style={[Styles.text, localStyles.formLabels]}>
-                  Province
-                </Text>
-                <TextInput
-                  style={[
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Province
+            </Text>
+            <TextInput
+                style={[
                     Styles.inputFields,
                     { marginBottom: 20, width: '100%' },
-                  ]}
-                  placeholder="Enter Province Here"
-                  placeholderTextColor="#3D550C"
-                  value={areaProvince}
-                  onChangeText={setAreaProvince}
-                  multiline={false}
-                />
+                ]}
+                placeholder="Enter Province Here"
+                placeholderTextColor="#8b8b8bff"
+                value={areaProvince}
+                onChangeText={setAreaProvince}
+                multiline={false}
+            />
 
-                <Text style={[Styles.text, localStyles.formLabels]}>
-                  Organization
-                </Text>
-                <TextInput
-                  style={[
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Organization
+            </Text>
+            <TextInput
+                style={[
                     Styles.inputFields,
                     { marginBottom: 20, width: '100%' },
-                  ]}
-                  placeholder="Enter Organization of Owner Here"
-                  placeholderTextColor="#3D550C"
-                  value={areaOrganization}
-                  onChangeText={setAreaOrganization}
-                  multiline={false}
-                />
+                ]}
+                placeholder="Enter Organization of Owner Here"
+                placeholderTextColor="#8b8b8bff"
+                value={areaOrganization}
+                onChangeText={setAreaOrganization}
+                multiline={false}
+            />
 
-                <Text
-                  style={[
+            <Text
+                style={[
                     Styles.text,
                     localStyles.formLabels,
                     { marginBottom: 10 },
-                  ]}
-                >
-                  Attach Photos
-                </Text>
-                <View style={localStyles.photoButtonContainer}>
-                  <TouchableOpacity
+                ]}
+            >
+                Attach Photos
+            </Text>
+            <View style={localStyles.photoButtonContainer}>
+                <TouchableOpacity
                     style={[Styles.button, localStyles.smallPhotoButton]}
                     onPress={handleCameraPress}
-                  >
+                >
                     <Ionicons
-                      name="camera-outline"
-                      size={20}
-                      color={Styles.buttonText.color}
-                      style={{ marginRight: 5 }}
+                        name="camera-outline"
+                        size={20}
+                        color={Styles.buttonText.color}
+                        style={{ marginRight: 5 }}
                     />
                     <Text style={Styles.buttonText}>Take Photo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
+                </TouchableOpacity>
+                <TouchableOpacity
                     style={[Styles.button, localStyles.smallPhotoButton]}
                     onPress={handlePhotoLibraryPress}
-                  >
+                >
                     <Ionicons
-                      name="image-outline"
-                      size={20}
-                      color={Styles.buttonText.color}
-                      style={{ marginRight: 5 }}
+                        name="image-outline"
+                        size={20}
+                        color={Styles.buttonText.color}
+                        style={{ marginRight: 5 }}
                     />
                     <Text style={Styles.buttonText}>From Library</Text>
-                  </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
+            </View>
 
-                {formPhotos.length > 0 && (
-                  <TouchableOpacity
+            {formPhotos.length > 0 && (
+                <TouchableOpacity
                     onPress={() => {
-                      Alert.alert(
-                        'Clear Photos',
-                        'Are you sure you want to remove all attached photos?',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Clear Photos',
-                            onPress: clearFormPhotos,
-                            style: 'destructive',
-                          },
-                        ],
-                        { cancelable: true },
-                      );
+                        Alert.alert(
+                            'Clear Photos',
+                            'Are you sure you want to remove all attached photos?',
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                    text: 'Clear Photos',
+                                    onPress: clearFormPhotos,
+                                    style: 'destructive',
+                                },
+                            ],
+                            { cancelable: true },
+                        );
                     }}
                     style={[
-                      Styles.button,
-                      {
-                        backgroundColor: '#F08080',
-                        marginBottom: 15,
-                        width: '100%',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      },
+                        Styles.button,
+                        {
+                            backgroundColor: '#F08080',
+                            marginBottom: 15,
+                            width: '100%',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        },
                     ]}
-                  >
+                >
                     <Ionicons
-                      name="trash-outline"
-                      size={20}
-                      color={Styles.buttonText.color}
-                      style={{ marginRight: 5 }}
+                        name="trash-outline"
+                        size={20}
+                        color={Styles.buttonText.color}
+                        style={{ marginRight: 5 }}
                     />
                     <Text style={Styles.buttonText}>Clear Photos</Text>
-                  </TouchableOpacity>
-                )}
+                </TouchableOpacity>
+            )}
 
-                {formPhotos.length > 0 ? (
-                  <View style={localStyles.photoPreviewGrid}>
+            {formPhotos.length > 0 ? (
+                <View style={localStyles.photoPreviewGrid}>
                     {formPhotos.map((photo) => (
-                      <View
-                        key={photo.id}
-                        style={localStyles.photoThumbnailContainer}
-                      >
-                        <Image
-                          source={{ uri: photo.uri }}
-                          style={localStyles.photoThumbnail}
-                        />
-                        <TouchableOpacity
-                          style={localStyles.deletePhotoButton}
-                          onPress={() => removeFormPhoto(photo.id)}
+                        <View
+                            key={photo.id}
+                            style={localStyles.photoThumbnailContainer}
                         >
-                          <Ionicons name="close-circle" size={24} color="red" />
-                        </TouchableOpacity>
-                      </View>
+                            <Image
+                                source={{ uri: photo.uri }}
+                                style={localStyles.photoThumbnail}
+                            />
+                            <TouchableOpacity
+                                style={localStyles.deletePhotoButton}
+                                onPress={() => removeFormPhoto(photo.id)}
+                            >
+                                <Ionicons name="close-circle" size={24} color="red" />
+                            </TouchableOpacity>
+                        </View>
                     ))}
-                  </View>
-                ) : (
-                  <Text
+                </View>
+            ) : (
+                <Text
                     style={[
-                      Styles.text,
-                      { color: '#888', marginBottom: 20, textAlign: 'center' },
-                    ]}
-                  >
-                    No photos attached yet.
-                  </Text>
-                )}
-
-                <TouchableOpacity
-                  style={[Styles.button, { width: '100%' }]}
-                  onPress={handleSubmitForm}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={Styles.buttonText.color} />
-                  ) : (
-                    <Text style={Styles.buttonText}>Submit</Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ marginTop: 10 }}
-                  onPress={() => {
-                    setModalVisible(false);
-                    panY.setValue(0);
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <View style={{ justifyContent: 'center' }}>
-                    <Text
-                      style={[
                         Styles.text,
-                        { color: '#555', textAlign: 'center' },
-                      ]}
+                        { color: '#888', marginBottom: 20, textAlign: 'center' },
+                    ]}
+                >
+                    No photos attached yet.
+                </Text>
+            )}
+
+            {/* NEXT PAGE BUTTON */}
+            <TouchableOpacity
+                style={[Styles.button, { width: '100%', marginTop: 20 }]}
+                onPress={() => {
+                    if (
+                        !areaName.trim() ||
+                        !areaRegion.trim() ||
+                        !areaProvince.trim() ||
+                        !areaOrganization.trim()
+                    ) {
+                        Alert.alert('Required Fields', 'Please fill out all location details before proceeding.');
+                        return;
+                    }
+                    setCurrentPage(2);
+                    // Scroll to the top of the new page content
+                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                }}
+            >
+                <Text style={Styles.buttonText}>Next: Topographical Data</Text>
+            </TouchableOpacity>
+
+            {renderCancelButton()}
+        </View>
+    );
+
+    // --- Modal Page 2: Topographical Data (NEW) ---
+    const renderTopographicalForm = () => (
+        <View>
+            <Text
+                style={[
+                    Styles.text,
+                    {
+                        marginBottom: 15,
+                        textAlign: 'center',
+                        fontSize: 18,
+                        fontWeight: 'bold',
+                    },
+                ]}
+            >
+                Topographical Data (2/2)
+            </Text>
+
+            {/* SLOPE Input */}
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Slope
+            </Text>
+            <TextInput
+                style={[
+                    Styles.inputFields,
+                    { marginBottom: 20, width: '100%' },
+                ]}
+                placeholder="Enter the marked area's Slope in degrees"
+                placeholderTextColor="#8b8b8bff"
+                value={areaSlope}
+                onChangeText={setAreaSlope}
+                keyboardType="numeric"
+                multiline={false}
+            />
+
+            {/* MASL Input */}
+            <Text style={[Styles.text, localStyles.formLabels]}>
+                Mean Average Sea Level (masl)
+            </Text>
+            <TextInput
+                style={[
+                    Styles.inputFields,
+                    { marginBottom: 20, width: '100%' },
+                ]}
+                placeholder="Enter the Mean Average Sea Level of the marked area"
+                placeholderTextColor="#8b8b8bff"
+                value={areaMasl}
+                onChangeText={setAreaMasl}
+                keyboardType="numeric"
+                multiline={false}
+            />
+
+            {/* SUBMIT BUTTON */}
+            <TouchableOpacity
+                style={[Styles.button, { width: '100%' }]}
+                onPress={handleSubmitForm}
+                disabled={isSubmitting}
+            >
+                {isSubmitting ? (
+                    <ActivityIndicator color={Styles.buttonText.color} />
+                ) : (
+                    <Text style={Styles.buttonText}>Submit Area Details</Text>
+                )}
+            </TouchableOpacity>
+
+            {/* BACK BUTTON */}
+            <TouchableOpacity
+                style={[
+                    Styles.button,
+                    {
+                        marginTop: 10,
+                        backgroundColor: '#999999', // A slightly muted button for 'Back'
+                        width: '100%',
+                    },
+                ]}
+                onPress={() => {
+                    setCurrentPage(1);
+                    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                }}
+                disabled={isSubmitting}
+            >
+                <Text style={Styles.buttonText}>Back to Area Details</Text>
+            </TouchableOpacity>
+
+            {renderCancelButton()}
+        </View>
+    );
+
+    return (
+        <SafeAreaView style={{ flex: 1 }}>
+            <MapView
+                ref={mapRef}
+                provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+                style={{ flex: 1 }}
+                onMapReady={handleMapReady}
+                onPress={handleMapPress}
+                mapType="hybrid"
+                initialRegion={{
+                    latitude: 12.8797,
+                    longitude: 121.774,
+                    latitudeDelta: 10.0,
+                    longitudeDelta: 10.0,
+                }}
+            >
+                {points.map((point, index) => (
+                    <Marker
+                        draggable
+                        onDrag={(e) => {
+                            updatePoint(index, e.nativeEvent.coordinate);
+                        }}
+                        onDragEnd={(e) => {
+                            updatePoint(index, e.nativeEvent.coordinate);
+                        }}
+                        key={`marker-${index}`}
+                        coordinate={point}
+                        onPress={() => handleMarkerPress(index)}
+                        pinColor={Platform.OS !== 'ios' ? 'red' : undefined}
                     >
-                      Cancel
-                    </Text>
-                  </View>
+                        {Platform.OS === 'ios' && (
+                            <View style={localStyles.mapMarker}>
+                                <MaterialCommunityIcons
+                                    name="map-marker"
+                                    size={isComplete ? 25 : 30}
+                                    color={isComplete ? 'darkred' : 'red'}
+                                />
+                            </View>
+                        )}
+                    </Marker>
+                ))}
+
+                {userLocation &&
+                    !isCoordinateInArray(
+                        userLocation,
+                        points.map((p) => ({
+                            latitude: p.latitude,
+                            longitude: p.longitude,
+                        })),
+                    ) && (
+                        <Marker
+                            draggable
+                            key="user-location-marker"
+                            coordinate={userLocation}
+                            title="My Location"
+                            pinColor={Platform.OS !== 'ios' ? 'blue' : undefined}
+                        >
+                            {Platform.OS === 'ios' && (
+                                <MaterialCommunityIcons
+                                    name="crosshairs-gps"
+                                    size={30}
+                                    color="blue"
+                                />
+                            )}
+                        </Marker>
+                    )}
+
+                {points.length > 1 && (
+                    <Polyline coordinates={points} strokeWidth={3} strokeColor="blue" />
+                )}
+            </MapView>
+
+            <SafeAreaView style={localStyles.backButtonContainer}>
+                <TouchableOpacity
+                    onPress={() => navigation.navigate('Home')}
+                    style={localStyles.backButton}
+                >
+                    <Ionicons
+                        name="chevron-back"
+                        size={30}
+                        color={Styles.buttonText.color}
+                    />
                 </TouchableOpacity>
-              </ScrollView>
-            </Animated.View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </SafeAreaView>
-  );
+            </SafeAreaView>
+
+            <SafeAreaView style={localStyles.undoRedoClearContainer}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity
+                        onPress={handleClearMap}
+                        disabled={points.length === 0}
+                        style={[
+                            localStyles.clearButton,
+                            {
+                                backgroundColor:
+                                    points.length > 0
+                                        ? Styles.button.backgroundColor
+                                        : Styles.inputFields.backgroundColor,
+                                padding: 8,
+                                borderRadius: 20,
+                            },
+                        ]}
+                    >
+                        <Ionicons
+                            name="trash-outline"
+                            size={30}
+                            color={points.length > 0 ? 'black' : 'grey'}
+                        />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={handleUndo}
+                        disabled={points.length === 0 || isComplete}
+                        style={{
+                            backgroundColor:
+                                points.length > 0 && !isComplete
+                                    ? Styles.button.backgroundColor
+                                    : Styles.inputFields.backgroundColor,
+                            padding: 8,
+                            borderRadius: 20,
+                            marginRight: 10,
+                        }}
+                    >
+                        <EvilIcons
+                            name="undo"
+                            size={30}
+                            color={points.length > 0 && !isComplete ? 'black' : 'grey'}
+                        />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={handleRedo}
+                        disabled={redoStack.length === 0 || isComplete}
+                        style={{
+                            backgroundColor:
+                                redoStack.length > 0 && !isComplete
+                                    ? Styles.button.backgroundColor
+                                    : Styles.inputFields.backgroundColor,
+                            padding: 8,
+                            borderRadius: 20,
+                        }}
+                    >
+                        <EvilIcons
+                            name="redo"
+                            size={30}
+                            color={redoStack.length > 0 && !isComplete ? 'black' : 'grey'}
+                        />
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+
+            {/* Forms Button after completing */}
+            {isComplete && (
+                <TouchableOpacity
+                    style={[Styles.button, localStyles.openFormButton]}
+                    onPress={handleOpenForm}
+                >
+                    <Ionicons
+                        name="document-text-outline"
+                        size={24}
+                        color={Styles.buttonText.color}
+                        style={{ marginRight: 5 }}
+                    />
+                    <Text style={Styles.buttonText}>Open Form</Text>
+                </TouchableOpacity>
+            )}
+
+            {!isComplete && (
+                <TouchableOpacity
+                    style={[
+                        Styles.button,
+                        localStyles.openFormButton,
+                        {
+                            opacity:
+                                new Set(points.map((p) => `${p.latitude},${p.longitude}`))
+                                    .size >= 3
+                                    ? 1
+                                    : 0.5,
+                        },
+                    ]}
+                    onPress={handleCompletePlotting}
+                    disabled={
+                        new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3
+                    }
+                >
+                    <Text style={Styles.buttonText}>Complete Shape</Text>
+                </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+                style={[
+                    Styles.button,
+                    {
+                        position: 'absolute',
+                        bottom: 60,
+                        left: 20,
+                        right: 20,
+                        width: undefined,
+                        marginTop: 0,
+                        alignSelf: 'center',
+                        opacity: isComplete ? 0.5 : 1,
+                    },
+                ]}
+                onPress={getCurrentUserLocation}
+                disabled={isComplete}
+            >
+                <Text style={Styles.buttonText}>Mark My Location</Text>
+            </TouchableOpacity>
+
+            <Modal
+                visible={modalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => {
+                    setModalVisible(false);
+                    setCurrentPage(1); // Reset page on close
+                }}
+            >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+                        <Animated.View
+                            style={[
+                                Styles.formBox,
+                                {
+                                    width: '100%',
+                                    minHeight: '60%',
+                                    borderTopLeftRadius: 20,
+                                    borderTopRightRadius: 20,
+                                    paddingHorizontal: 20,
+                                    paddingVertical: 20,
+                                    transform: [{ translateY: panY }],
+                                },
+                            ]}
+                            onLayout={(event) => {
+                                if (initialModalHeight.current === 0) {
+                                    initialModalHeight.current = event.nativeEvent.layout.height;
+                                }
+                            }}
+                        >
+                            {/* Draggable indicator/header */}
+                            <View
+                                style={localStyles.modalHandle}
+                                {...panResponder.panHandlers}
+                            >
+                                <View style={localStyles.modalHandleBar} />
+                            </View>
+
+                            <ScrollView
+                                keyboardShouldPersistTaps="handled"
+                                ref={scrollViewRef} // Assign ref here
+                            >
+                                {/* Conditional Rendering based on currentPage state */}
+                                {currentPage === 1 && renderAreaDetailsForm()}
+                                {currentPage === 2 && renderTopographicalForm()}
+
+                            </ScrollView>
+                        </Animated.View>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+        </SafeAreaView>
+    );
 }
 
 const localStyles = StyleSheet.create({
-  backButtonContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    zIndex: 1,
-    paddingTop: 10,
-    paddingLeft: 10,
-  },
-  backButton: {
-    backgroundColor: Styles.button.backgroundColor,
-    padding: 8,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  undoRedoClearContainer: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    zIndex: 1,
-    paddingTop: 10,
-    paddingRight: 10,
-  },
-  clearButton: {
-    marginRight: 10,
-  },
-  openFormButton: {
-    position: 'absolute',
-    bottom: 120,
-    left: 20,
-    right: 20,
-    width: undefined,
-    marginTop: 0,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-
-  photoButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
-    width: '100%',
-  },
-  smallPhotoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    backgroundColor: Styles.button.backgroundColor,
-    width: 190,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
+    backButtonContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        zIndex: 1,
+        paddingTop: 10,
+        paddingLeft: 10,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  photoPreviewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    marginBottom: 20,
-  },
-  photoThumbnailContainer: {
-    position: 'relative',
-    margin: 5,
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  photoThumbnail: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-    borderRadius: 8,
-  },
-  deletePhotoButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 2,
-  },
-  formLabels: {
-    textAlign: 'left',
-    fontSize: 18,
-  },
-  mapMarker: {
-    padding: 2,
-    backgroundColor: 'white',
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'red',
-  },
-  modalHandle: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 10,
-    marginBottom: 10,
-  },
-  modalHandleBar: {
-    width: 60,
-    height: 5,
-    backgroundColor: '#ccc',
-    borderRadius: 2.5,
-  },
+    backButton: {
+        backgroundColor: Styles.button.backgroundColor,
+        padding: 8,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    undoRedoClearContainer: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        zIndex: 1,
+        paddingTop: 10,
+        paddingRight: 10,
+    },
+    clearButton: {
+        marginRight: 10,
+    },
+    openFormButton: {
+        position: 'absolute',
+        bottom: 120,
+        left: 20,
+        right: 20,
+        width: undefined,
+        marginTop: 0,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+    },
+
+    photoButtonContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginBottom: 15,
+        width: '100%',
+    },
+    smallPhotoButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+        borderRadius: 10,
+        backgroundColor: Styles.button.backgroundColor,
+        width: 190,
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    photoPreviewGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        marginBottom: 20,
+    },
+    photoThumbnailContainer: {
+        position: 'relative',
+        margin: 5,
+        width: 100,
+        height: 100,
+        borderRadius: 8,
+        overflow: 'hidden',
+    },
+    photoThumbnail: {
+        width: '100%',
+        height: '100%',
+        resizeMode: 'cover',
+        borderRadius: 8,
+    },
+    deletePhotoButton: {
+        position: 'absolute',
+        top: -8,
+        right: -8,
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 2,
+    },
+    formLabels: {
+        textAlign: 'left',
+    },
+    modalHandle: {
+        width: '100%',
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    modalHandleBar: {
+        width: 40,
+        height: 5,
+        borderRadius: 5,
+        backgroundColor: '#ccc',
+    },
+    mapMarker: {
+        // Custom marker style for iOS if needed
+    }
 });
