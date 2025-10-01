@@ -351,8 +351,10 @@ export default function Map() {
       !areaRegion.trim() ||
       !areaProvince.trim() ||
       !areaOrganization.trim() ||
-      !areaSlope.trim() || // NEW VALIDATION
-      !areaMasl.trim() // NEW VALIDATION
+      !areaSlope.trim() ||
+      !areaMasl.trim() ||
+      !areaSoilType.trim() ||
+      !areaSoilSuitability.trim()
     ) {
       Alert.alert(
         'Missing Information',
@@ -497,10 +499,22 @@ export default function Map() {
   ).current;
 
   const handleNextPage = () => {
+    if (currentPage === 2 && !areaSlope.trim() && !areaMasl.trim()) {
+      Alert.alert('Missing Information', 'Please fill out all the fields');
+      return;
+    }
+    if (
+      currentPage === 1 &&
+      !areaName.trim() &&
+      !areaRegion.trim() &&
+      !areaProvince.trim() &&
+      !areaOrganization.trim()
+    ) {
+      Alert.alert('Missing Information', 'Please fill out all the fields');
+      return;
+    }
     if (currentPage != 3) {
       setCurrentPage((prev) => prev + 1);
-    } else {
-      setCurrentPage(1);
     }
   };
 
@@ -544,15 +558,15 @@ export default function Map() {
           },
         ]}
       >
-        Farm Properties (1/3)
+        Area Location Details (1/3)
       </Text>
-      <Text style={[Styles.text, localStyles.formLabels]}>Name</Text>
+      <Text style={[Styles.text, localStyles.formLabels]}>Area Name</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
         placeholder="Place Name"
         placeholderTextColor="#8b8b8bff"
         value={areaName}
-        onChangeText={setAreaSoilType}
+        onChangeText={setAreaName}
         multiline={false}
       />
       <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
@@ -780,22 +794,24 @@ export default function Map() {
       >
         Farm Properties (3/3)
       </Text>
-      <Text style={[Styles.text, localStyles.formLabels]}>Area Name</Text>
+      <Text style={[Styles.text, localStyles.formLabels]}>Soil Type</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
         placeholder="Place Name"
         placeholderTextColor="#8b8b8bff"
-        value={areaName}
-        onChangeText={setAreaName}
+        value={areaSoilType}
+        onChangeText={setAreaSoilType}
         multiline={false}
       />
-      <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
+      <Text style={[Styles.text, localStyles.formLabels]}>
+        Soil Suitability
+      </Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
         placeholder="Location Details"
         placeholderTextColor="#8b8b8bff"
-        value={areaRegion}
-        onChangeText={setAreaRegion}
+        value={areaSoilSuitability}
+        onChangeText={setAreaSoilSuitability}
         multiline={false}
       />
 
@@ -863,7 +879,7 @@ export default function Map() {
             pinColor={Platform.OS !== 'ios' ? 'red' : undefined}
           >
             {Platform.OS === 'ios' && (
-              <View style={localStyles.mapMarker}>
+              <View>
                 <MaterialCommunityIcons
                   name="map-marker"
                   size={isComplete ? 25 : 30}
