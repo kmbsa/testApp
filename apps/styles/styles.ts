@@ -20,6 +20,12 @@ const Styles = StyleSheet.create({
     elevation: 5,
     alignSelf: 'center',
   },
+  twoButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+    width: '100%',
+  },
   responsiveFormContainer: {
     width: '95%',
     maxWidth: 500,
@@ -51,6 +57,19 @@ const Styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#F4D03F',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 20,
+    width: 300,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  disabledButton: {
+    backgroundColor: '#888',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,

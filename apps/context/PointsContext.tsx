@@ -31,7 +31,7 @@ export const usePointsContext = () => {
   return context;
 };
 
-const isCoordinateInArray = (
+export const isCoordinateInArray = (
   coordinate: { latitude: number; longitude: number },
   array: { latitude: number; longitude: number }[],
   epsilon = 0.00001,
@@ -41,6 +41,60 @@ const isCoordinateInArray = (
       Math.abs(point.latitude - coordinate.latitude) < epsilon &&
       Math.abs(point.longitude - coordinate.longitude) < epsilon,
   );
+};
+
+export const findClosestSegmentForInsertion = (
+  touchCoord: Coordinate,
+  points: Coordinate[],
+  maxDistance: number = 0.0001,
+): { insertionIndex: number; distance: number } | null => {
+  if (points.length < 2) return null;
+
+  let closestDistance = Infinity;
+  let insertionIndex = -1;
+
+  // Iterate through all line segments
+  // We stop at points.length - 1 because the segment is points[i] to points[i+1]
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+
+    // Simplified planar distance calculation (works well for small distances)
+    const dx = p2.longitude - p1.longitude;
+    const dy = p2.latitude - p1.latitude;
+    const sqrLen = dx * dx + dy * dy;
+
+    if (sqrLen === 0) continue; // Skip identical points
+
+    // Calculate t (projection parameter)
+    let t =
+      ((touchCoord.longitude - p1.longitude) * dx +
+        (touchCoord.latitude - p1.latitude) * dy) /
+      sqrLen;
+
+    // Clamp t to [0, 1] to ensure the closest point is on the segment (not beyond the endpoints)
+    t = Math.max(0, Math.min(1, t));
+
+    // Closest point coordinates on the segment
+    const closestLng = p1.longitude + t * dx;
+    const closestLat = p1.latitude + t * dy;
+
+    // Euclidean distance from tapped point to the closest point on the segment
+    const dLng = touchCoord.longitude - closestLng;
+    const dLat = touchCoord.latitude - closestLat;
+    const currentDistance = Math.sqrt(dLng * dLng + dLat * dLat);
+
+    if (currentDistance < closestDistance) {
+      closestDistance = currentDistance;
+      insertionIndex = i + 1; // Insert AFTER point 'i' (i.e., before point 'i+1')
+    }
+  }
+
+  if (closestDistance < maxDistance) {
+    return { insertionIndex, distance: closestDistance };
+  }
+
+  return null;
 };
 
 export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({

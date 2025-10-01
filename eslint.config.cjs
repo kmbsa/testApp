@@ -26,7 +26,7 @@ module.exports = [
       'prettier/prettier': 'error',
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
-      'react-native/no-inline-styles': 'warn',
+      'react-native/no-inline-styles': 'off',
       'react/react-in-jsx-scope': 'off',
       'import/order': ['warn', { groups: [['builtin', 'external', 'internal']] }],
     },
