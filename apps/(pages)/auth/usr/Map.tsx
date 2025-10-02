@@ -310,11 +310,11 @@ export default function Map() {
             setAreaRegion('');
             setAreaProvince('');
             setAreaOrganization('');
-            // NEW RESETS
             setAreaSlope('');
             setAreaMasl('');
+            setAreaSoilType('');
+            setAreaSoilSuitability('');
             setCurrentPage(1);
-            // END NEW RESETS
             setUserLocation(null);
             panY.setValue(0);
           },
