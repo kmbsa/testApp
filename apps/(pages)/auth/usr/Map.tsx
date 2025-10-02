@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '@env';
+import axios, { AxiosError } from 'axios';
 import FormButton from '../../../components/FormButton';
 
 import type {
@@ -337,8 +338,7 @@ export default function Map() {
   const handleSubmitForm = async () => {
     if (isSubmitting) return;
 
-    // CHECK: Must be on the final page (page 2) to submit
-    if (currentPage !== 2) {
+    if (currentPage !== 3) {
       Alert.alert(
         'Incomplete Form',
         'Please proceed to the Topographical Data page.',
@@ -409,58 +409,73 @@ export default function Map() {
     );
 
     try {
-      const response = await fetch(`${API_URL}/area`, {
-        method: 'POST',
+      const response = await axios.post(`${API_URL}/area`, areaData, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
         },
-        body: JSON.stringify(areaData),
       });
 
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 200 || response.status === 201) {
+        console.log('Server response:', response.data);
+        Alert.alert('Success!', 'Area details submitted successfully.');
+
+        resetPoints();
+        clearFormPhotos();
+        setAreaName('');
+        setAreaRegion('');
+        setAreaProvince('');
+        setAreaOrganization('');
+        setAreaSlope('');
+        setAreaMasl('');
+        setCurrentPage(1);
+        setAreaSoilType('');
+        setAreaSoilSuitability('');
+        setModalVisible(false);
+        panY.setValue(0);
+        setUserLocation(null);
+      } else {
         Alert.alert(
-          'Session Expired',
-          'Your session has expired. Please log in again.',
+          'Unexpected Response',
+          `The server responded with status ${response.status}. Please try again.`,
         );
-        await signOut();
-        return;
       }
+    } catch (err) {
+      const error = err as AxiosError;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error:', response.status, errorText);
+      if (error.response) {
+        const status = error.response.status;
+        const errorData = error.response.data;
+
+        if (status === 401 || status === 403) {
+          Alert.alert(
+            'Session Expired',
+            'Your session has expired. Please log in again.',
+          );
+          await signOut();
+        } else {
+          console.error('Server error:', status, errorData);
+          Alert.alert(
+            'Submission Failed',
+            `Server responded with status ${status}: ${
+              typeof errorData === 'string'
+                ? errorData
+                : JSON.stringify(errorData, null, 2)
+            }`,
+          );
+        }
+      } else if (error.request) {
+        // Request made but no response
+        console.error('No response received:', error.request);
         Alert.alert(
-          'Submission Failed',
-          `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`,
+          'Network Error',
+          'No response received from the server. Please check your network connection.',
         );
-        return;
+      } else {
+        // Something completely different happened
+        console.error('Unexpected error:', error.message);
+        Alert.alert('Error', `Unexpected error occurred: ${error.message}`);
       }
-
-      const responseData = await response.json();
-      console.log('Server response:', responseData);
-      Alert.alert('Success!', 'Area details submitted successfully.');
-
-      resetPoints();
-      clearFormPhotos();
-      setAreaName('');
-      setAreaRegion('');
-      setAreaProvince('');
-      setAreaOrganization('');
-      // NEW RESETS
-      setAreaSlope('');
-      setAreaMasl('');
-      setCurrentPage(1);
-      // END NEW RESETS
-      setModalVisible(false);
-      panY.setValue(0);
-      setUserLocation(null);
-    } catch (error) {
-      console.error('Network or submission error:', error);
-      Alert.alert(
-        'Error',
-        `Could not connect to the server or submit data. Please check your network connection.\nDetails: ${error instanceof Error ? error.message : String(error)}`,
-      );
     } finally {
       setIsSubmitting(false);
     }
@@ -544,7 +559,7 @@ export default function Map() {
     </TouchableOpacity>
   );
 
-  // --- Modal Page 1: Area Details & Photos ---
+  // --- MODAL PAGE 1: AREA DETAILS ---
   const renderAreaDetailsForm = () => (
     <View>
       <Text
@@ -716,7 +731,7 @@ export default function Map() {
     </View>
   );
 
-  // --- Modal Page 2: Topographical Data ---
+  // --- MODAL PAGE 2: TOPOGRAPHICAL DATA ---
   const renderTopographicalForm = () => (
     <View>
       <Text
@@ -779,6 +794,7 @@ export default function Map() {
     </View>
   );
 
+  // --- MODAL PAGE 3: FARM PROPERTIES ---
   const renderFarmPropertiesForm = () => (
     <View>
       <Text
