@@ -77,8 +77,8 @@ export default function Map() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [areaName, setAreaName] = useState('');
-  const [areaRegion, setAreaRegion] = useState('');
-  const [areaProvince, setAreaProvince] = useState('');
+  const [areaRegion, setAreaRegion] = useState<string | null>(null);
+  const [areaProvince, setAreaProvince] = useState<string | null>(null);
   const [areaBarangay, setAreaBarangay] = useState('');
   const [areaOrganization, setAreaOrganization] = useState('');
   const [areaSlope, setAreaSlope] = useState('');
@@ -123,6 +123,15 @@ export default function Map() {
   useEffect(() => {
     console.log('### FINAL Map Points state changed (from Context):', points);
   }, [points]);
+
+  useEffect(() => {
+    if (selectedRegion) {
+      setAreaRegion(selectedRegion);
+      console.log(`Area Region:\t ${areaRegion}`);
+    } else {
+      setAreaRegion(null);
+    }
+  }, [selectedRegion]);
 
   const handleMapReady = () => {
     setMapLoaded(true);
@@ -306,6 +315,25 @@ export default function Map() {
     setCurrentPage(1); // Ensure it opens on page 1
   };
 
+  function clearForms() {
+    resetPoints();
+    setModalVisible(false);
+    setAreaName('');
+    setAreaRegion(null);
+    setAreaProvince(null);
+    setAreaOrganization('');
+    setAreaSlope('');
+    setAreaMasl('');
+    setAreaSoilType('');
+    setAreaSoilSuitability('');
+    setCurrentPage(1);
+    setUserLocation(null);
+    setSelectedRegion(null);
+    setSelectedRegion(null);
+    setAreaBarangay('');
+    panY.setValue(0);
+  }
+
   const handleClearMap = () => {
     Alert.alert(
       'Clear Map',
@@ -316,19 +344,7 @@ export default function Map() {
           text: 'Clear',
           onPress: () => {
             console.log('>>> Map: Clearing map via context resetPoints.');
-            resetPoints();
-            setModalVisible(false);
-            setAreaName('');
-            setAreaRegion('');
-            setAreaProvince('');
-            setAreaOrganization('');
-            setAreaSlope('');
-            setAreaMasl('');
-            setAreaSoilType('');
-            setAreaSoilSuitability('');
-            setCurrentPage(1);
-            setUserLocation(null);
-            panY.setValue(0);
+            clearForms();
           },
           style: 'destructive',
         },
@@ -358,16 +374,7 @@ export default function Map() {
       return;
     }
 
-    if (
-      !areaName.trim() ||
-      !areaRegion.trim() ||
-      !areaProvince.trim() ||
-      !areaOrganization.trim() ||
-      !areaSlope.trim() ||
-      !areaMasl.trim() ||
-      !areaSoilType.trim() ||
-      !areaSoilSuitability.trim()
-    ) {
+    if (!areaSoilType.trim() || !areaSoilSuitability.trim()) {
       Alert.alert(
         'Missing Information',
         'Please fill in all required form fields (Area Name, Region, Province, Organization, Slope, and Mean Average Sea Level).',
@@ -431,21 +438,7 @@ export default function Map() {
       if (response.status === 200 || response.status === 201) {
         console.log('Server response:', response.data);
         Alert.alert('Success!', 'Area details submitted successfully.');
-
-        resetPoints();
-        clearFormPhotos();
-        setAreaName('');
-        setAreaRegion('');
-        setAreaProvince('');
-        setAreaOrganization('');
-        setAreaSlope('');
-        setAreaMasl('');
-        setCurrentPage(1);
-        setAreaSoilType('');
-        setAreaSoilSuitability('');
-        setModalVisible(false);
-        panY.setValue(0);
-        setUserLocation(null);
+        clearForms();
       } else {
         Alert.alert(
           'Unexpected Response',
@@ -533,8 +526,8 @@ export default function Map() {
     if (
       currentPage === 1 &&
       !areaName.trim() &&
-      !areaRegion.trim() &&
-      !areaProvince.trim() &&
+      !areaRegion === null &&
+      !areaProvince === null &&
       !areaOrganization.trim()
     ) {
       Alert.alert('Missing Information', 'Please fill out all the fields');
@@ -883,6 +876,17 @@ export default function Map() {
     </View>
   );
 
+  // takeSnapshot = () => {
+  //   const snapShot = this.map.takeSnapshot({
+  //     format: 'png',
+  //     quality: '0.8',
+  //     result: 'file',
+  //   });
+  //   snapShot.then((uri: string) => {
+  //     this.setState({ mapSnapshot: uri });
+  //   });
+  // };
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <MapView
@@ -892,6 +896,7 @@ export default function Map() {
         onMapReady={handleMapReady}
         onPress={handleMapPress}
         mapType="hybrid"
+        followsUserLocation={true}
         initialRegion={{
           latitude: 12.8797,
           longitude: 121.774,
