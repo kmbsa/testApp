@@ -59,6 +59,14 @@ const SoilTypeData = [
   { label: 'Complex', value: 'Complex' },
 ];
 
+const SoilSuitabilityData = [
+  { label: 'High Elevation Crops', value: 'High Elevation Crops' },
+  { label: 'Mixed Farming', value: 'Mixed Farming' },
+  { label: 'Diversified Farming', value: 'Diversified Farming' },
+  { label: 'Low Elevation Crops', value: 'Low Elevation Crops' },
+  { label: 'Production Forest', value: 'Production Forest' },
+];
+
 export default function Map() {
   const navigation = useNavigation<RootStackNavigationProp>();
 
@@ -839,20 +847,26 @@ export default function Map() {
       </Text>
       {/* SOIL TYPE DROPDOWN */}
       <Text style={[Styles.text, localStyles.formLabels]}>Soil Type</Text>
-      <FormDropdown data={SoilTypeData} />
+      <FormDropdown
+        data={SoilTypeData}
+        value={areaSoilType}
+        onValueChange={(val) => {
+          setAreaSoilType(val);
+        }}
+        label="Enter Soil Type"
+      />
       {/* SOIL SUITABILITY DROPDOWN */}
       <Text style={[Styles.text, localStyles.formLabels]}>
         Soil Suitability
       </Text>
-      <TextInput
-        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Location Details"
-        placeholderTextColor="#8b8b8bff"
+      <FormDropdown
+        data={SoilSuitabilityData}
         value={areaSoilSuitability}
-        onChangeText={setAreaSoilSuitability}
-        multiline={false}
+        onValueChange={(val) => {
+          setAreaSoilSuitability(val);
+        }}
+        label="Enter Soil Suitability"
       />
-
       {/* PAGE SWITCH BUTTONS */}
       <View style={[Styles.twoButtonContainer]}>
         <FormButton
