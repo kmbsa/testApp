@@ -124,15 +124,6 @@ export default function Map() {
     console.log('### FINAL Map Points state changed (from Context):', points);
   }, [points]);
 
-  useEffect(() => {
-    if (selectedRegion) {
-      setAreaRegion(selectedRegion);
-      console.log(`Area Region:\t ${areaRegion}`);
-    } else {
-      setAreaRegion(null);
-    }
-  }, [selectedRegion]);
-
   const handleMapReady = () => {
     setMapLoaded(true);
     if (mapRef.current && points.length === 0) {
