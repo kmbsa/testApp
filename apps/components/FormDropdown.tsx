@@ -3,7 +3,6 @@ import { StyleSheet, View } from 'react-native';
 import { Dropdown } from 'react-native-element-dropdown';
 
 type DropdownItem = {
-  label: string;
   value: string;
   disabled?: boolean;
 };
@@ -13,7 +12,8 @@ type FormDropdownProps = {
   onValueChange?: (value: string) => void;
   value?: string | null;
   placeholder?: string;
-  label?: string;
+  dependentOnValue?: string | null;
+  filterData?: (data: any[], dependentValue: string | null) => DropdownItem[];
 };
 
 const DropdownComponent: React.FC<FormDropdownProps> = ({
@@ -21,30 +21,36 @@ const DropdownComponent: React.FC<FormDropdownProps> = ({
   onValueChange,
   value: controlledValue,
   placeholder = 'Select item',
+  dependentOnValue,
+  filterData,
 }) => {
   const [internalValue, setInternalValue] = useState<string | null>(null);
   const [isFocus, setIsFocus] = useState(false);
 
-  // Use controlled value if provided, otherwise fallback to internal state
   const value = controlledValue !== undefined ? controlledValue : internalValue;
+
+  const filteredData =
+    dependentOnValue !== undefined && filterData
+      ? filterData(data, dependentOnValue)
+      : data;
 
   const handleChange = (item: DropdownItem) => {
     if (controlledValue === undefined) {
       setInternalValue(item.value);
     }
-    onValueChange?.(item.value); // Notify parent
+    onValueChange?.(item.value);
     setIsFocus(false);
   };
 
   return (
     <View style={styles.container}>
       <Dropdown
-        style={[styles.dropdown, isFocus && { borderColor: '#F4D03F' }]}
+        style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
         placeholderStyle={styles.placeholderStyle}
         selectedTextStyle={styles.selectedTextStyle}
         inputSearchStyle={styles.inputSearchStyle}
         iconStyle={styles.iconStyle}
-        data={data}
+        data={filteredData}
         search
         maxHeight={300}
         labelField="label"

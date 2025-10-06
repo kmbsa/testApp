@@ -44,28 +44,9 @@ import { useAuth } from '../../../context/AuthContext';
 
 import Styles from '../../../styles/styles';
 
-const SoilTypeData = [
-  { label: 'Loam', value: 'Loam' },
-  { label: 'Clay', value: 'Clay' },
-  { label: 'Silt', value: 'Silt' },
-  { label: 'Sand', value: 'Sand' },
-  { label: 'Mountain Soil', value: 'Mountain Soil' },
-  { label: 'Sandy Loam', value: 'Sandy Loam' },
-  { label: 'Sandy Clay', value: 'Sandy Clay' },
-  { label: 'Clay Loam', value: 'Clay Loam' },
-  { label: 'Sandy Clay Loam', value: 'Sandy Clay Loam' },
-  { label: 'Silty Clay Loam', value: 'Silty Clay Loam' },
-  { label: 'Hydrosol', value: 'Hydrosol' },
-  { label: 'Complex', value: 'Complex' },
-];
-
-const SoilSuitabilityData = [
-  { label: 'High Elevation Crops', value: 'High Elevation Crops' },
-  { label: 'Mixed Farming', value: 'Mixed Farming' },
-  { label: 'Diversified Farming', value: 'Diversified Farming' },
-  { label: 'Low Elevation Crops', value: 'Low Elevation Crops' },
-  { label: 'Production Forest', value: 'Production Forest' },
-];
+import { SoilTypeData } from '../../../data/SoilType';
+import { SoilSuitabilityData } from '../../../data/SoilSuitability';
+import { provincesByRegion } from '../../../data/Regions';
 
 export default function Map() {
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -104,6 +85,12 @@ export default function Map() {
   const [areaMasl, setAreaMasl] = useState('');
   const [areaSoilType, setAreaSoilType] = useState('');
   const [areaSoilSuitability, setAreaSoilSuitability] = useState('');
+
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+
+  const provincesForSelectedRegion =
+    provincesByRegion.find((r) => r.region === selectedRegion)?.provinces || [];
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -612,23 +599,21 @@ export default function Map() {
       />
       {/* REGION INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
-      <TextInput
-        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Enter Region Here"
-        placeholderTextColor="#8b8b8bff"
-        value={areaRegion}
-        onChangeText={setAreaRegion}
-        multiline={false}
+      <FormDropdown
+        data={provincesByRegion.map((r) => ({
+          label: r.region,
+          value: r.region,
+        }))}
+        value={selectedRegion}
+        onValueChange={setSelectedRegion}
       />
       {/* PROVINCE INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
-      <TextInput
-        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Enter Province Here"
-        placeholderTextColor="#8b8b8bff"
-        value={areaProvince}
-        onChangeText={setAreaProvince}
-        multiline={false}
+      <FormDropdown
+        data={provincesForSelectedRegion}
+        value={selectedProvince}
+        onValueChange={setSelectedProvince}
+        placeholder="Select province"
       />
       {/* BARANGAY INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Barangay</Text>
@@ -853,7 +838,6 @@ export default function Map() {
         onValueChange={(val) => {
           setAreaSoilType(val);
         }}
-        label="Enter Soil Type"
       />
       {/* SOIL SUITABILITY DROPDOWN */}
       <Text style={[Styles.text, localStyles.formLabels]}>
@@ -865,7 +849,6 @@ export default function Map() {
         onValueChange={(val) => {
           setAreaSoilSuitability(val);
         }}
-        label="Enter Soil Suitability"
       />
       {/* PAGE SWITCH BUTTONS */}
       <View style={[Styles.twoButtonContainer]}>
@@ -885,7 +868,7 @@ export default function Map() {
 
       {/* SUBMIT BUTTON */}
       <TouchableOpacity
-        style={[Styles.button, { width: '100%' }]}
+        style={[Styles.button, { width: '100%', marginBottom: 15 }]}
         onPress={handleSubmitForm}
         disabled={isSubmitting}
       >
