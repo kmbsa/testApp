@@ -25,6 +25,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '@env';
 import axios, { AxiosError } from 'axios';
+import FormDropdown from '../../../components/FormDropdown';
 import FormButton from '../../../components/FormButton';
 
 import type {
@@ -42,6 +43,21 @@ import { usePhotosContext } from '../../../context/PhotosContext';
 import { useAuth } from '../../../context/AuthContext';
 
 import Styles from '../../../styles/styles';
+
+const SoilTypeData = [
+  { label: 'Loam', value: 'Loam' },
+  { label: 'Clay', value: 'Clay' },
+  { label: 'Silt', value: 'Silt' },
+  { label: 'Sand', value: 'Sand' },
+  { label: 'Mountain Soil', value: 'Mountain Soil' },
+  { label: 'Sandy Loam', value: 'Sandy Loam' },
+  { label: 'Sandy Clay', value: 'Sandy Clay' },
+  { label: 'Clay Loam', value: 'Clay Loam' },
+  { label: 'Sandy Clay Loam', value: 'Sandy Clay Loam' },
+  { label: 'Silty Clay Loam', value: 'Silty Clay Loam' },
+  { label: 'Hydrosol', value: 'Hydrosol' },
+  { label: 'Complex', value: 'Complex' },
+];
 
 export default function Map() {
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -74,6 +90,7 @@ export default function Map() {
   const [areaName, setAreaName] = useState('');
   const [areaRegion, setAreaRegion] = useState('');
   const [areaProvince, setAreaProvince] = useState('');
+  const [areaBarangay, setAreaBarangay] = useState('');
   const [areaOrganization, setAreaOrganization] = useState('');
   const [areaSlope, setAreaSlope] = useState('');
   const [areaMasl, setAreaMasl] = useState('');
@@ -575,25 +592,27 @@ export default function Map() {
       >
         Area Location Details (1/3)
       </Text>
+      {/* NAME INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Area Name</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
-        placeholder="Place Name"
+        placeholder="Enter Area Name Here"
         placeholderTextColor="#8b8b8bff"
         value={areaName}
         onChangeText={setAreaName}
         multiline={false}
       />
+      {/* REGION INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Region</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Location Details"
+        placeholder="Enter Region Here"
         placeholderTextColor="#8b8b8bff"
         value={areaRegion}
         onChangeText={setAreaRegion}
         multiline={false}
       />
-
+      {/* PROVINCE INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
@@ -603,7 +622,17 @@ export default function Map() {
         onChangeText={setAreaProvince}
         multiline={false}
       />
-
+      {/* BARANGAY INPUT */}
+      <Text style={[Styles.text, localStyles.formLabels]}>Barangay</Text>
+      <TextInput
+        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
+        placeholder="Enter Barangay Here"
+        placeholderTextColor="#8b8b8bff"
+        value={areaBarangay}
+        onChangeText={setAreaBarangay}
+        multiline={false}
+      />
+      {/* ORGANIZATION INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Organization</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
@@ -613,7 +642,7 @@ export default function Map() {
         onChangeText={setAreaOrganization}
         multiline={false}
       />
-
+      {/* PHOTO INPUT */}
       <Text style={[Styles.text, localStyles.formLabels, { marginBottom: 10 }]}>
         Attach Photos
       </Text>
@@ -752,7 +781,7 @@ export default function Map() {
       <Text style={[Styles.text, localStyles.formLabels]}>Slope</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Enter the marked area's Slope in degrees"
+        placeholder="Enter the marked area's Slope in percentage"
         placeholderTextColor="#8b8b8bff"
         value={areaSlope}
         onChangeText={setAreaSlope}
@@ -766,14 +795,13 @@ export default function Map() {
       </Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Enter the Mean Average Sea Level of the marked area"
+        placeholder="Enter the Mean Average Sea Level"
         placeholderTextColor="#8b8b8bff"
         value={areaMasl}
         onChangeText={setAreaMasl}
         keyboardType="numeric"
         multiline={false}
       />
-
       {/* PAGE SWITCH BUTTONS */}
       <View style={[Styles.twoButtonContainer]}>
         <FormButton
@@ -789,7 +817,6 @@ export default function Map() {
           additionalStyles={[localStyles.smallPhotoButton]}
         />
       </View>
-
       {renderCancelButton()}
     </View>
   );
@@ -810,15 +837,10 @@ export default function Map() {
       >
         Farm Properties (3/3)
       </Text>
+      {/* SOIL TYPE DROPDOWN */}
       <Text style={[Styles.text, localStyles.formLabels]}>Soil Type</Text>
-      <TextInput
-        style={[Styles.inputFields, { marginBottom: 15, width: '100%' }]}
-        placeholder="Place Name"
-        placeholderTextColor="#8b8b8bff"
-        value={areaSoilType}
-        onChangeText={setAreaSoilType}
-        multiline={false}
-      />
+      <FormDropdown data={SoilTypeData} />
+      {/* SOIL SUITABILITY DROPDOWN */}
       <Text style={[Styles.text, localStyles.formLabels]}>
         Soil Suitability
       </Text>
