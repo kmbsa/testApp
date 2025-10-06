@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Dropdown } from 'react-native-element-dropdown';
 
-type DropdownItem = {
+export type DropdownItem = {
   value: string;
   disabled?: boolean;
 };
 
-type FormDropdownProps = {
+export type FormDropdownProps = {
   data: DropdownItem[];
   onValueChange?: (value: string) => void;
   value?: string | null;
