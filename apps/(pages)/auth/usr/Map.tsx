@@ -17,7 +17,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { EvilIcons } from '@expo/vector-icons';
+import { AntDesign, Entypo, EvilIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,6 +97,8 @@ export default function Map() {
     latitude: number;
     longitude: number;
   } | null>(null);
+
+  const [snapShot, setSnapshot] = React.useState<string | null>(null);
 
   const { userToken, userData, signOut } = useAuth();
 
@@ -541,6 +543,20 @@ export default function Map() {
     }
   };
 
+  const takeSnapshot = async () => {
+    if (mapRef.current) {
+      try {
+        const uri = await mapRef.current.takeSnapshot({
+          format: 'png',
+        });
+        setSnapshot(uri);
+        console.log(`Snapshot saved at: ${uri}`);
+      } catch (e) {
+        console.log(`Snapshot Error: ${e}`);
+      }
+    }
+  };
+
   const renderCancelButton = () => (
     <TouchableOpacity
       style={{ marginTop: 10 }}
@@ -758,7 +774,7 @@ export default function Map() {
         Topographical Data (2/3)
       </Text>
 
-      {/* SLOPE Input */}
+      {/* SLOPE INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Slope</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
@@ -770,7 +786,7 @@ export default function Map() {
         multiline={false}
       />
 
-      {/* MASL Input */}
+      {/* MASL INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>
         Mean Average Sea Level (masl)
       </Text>
@@ -871,17 +887,6 @@ export default function Map() {
     </View>
   );
 
-  // takeSnapshot = () => {
-  //   const snapShot = this.map.takeSnapshot({
-  //     format: 'png',
-  //     quality: '0.8',
-  //     result: 'file',
-  //   });
-  //   snapShot.then((uri: string) => {
-  //     this.setState({ mapSnapshot: uri });
-  //   });
-  // };
-
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <MapView
@@ -965,6 +970,9 @@ export default function Map() {
             size={30}
             color={Styles.buttonText.color}
           />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={takeSnapshot} style={localStyles.backButton}>
+          <Entypo name="save" size={30} color={Styles.buttonText.color} />
         </TouchableOpacity>
       </SafeAreaView>
 
@@ -1154,11 +1162,13 @@ const localStyles = StyleSheet.create({
     zIndex: 1,
     paddingTop: 10,
     paddingLeft: 10,
+    flexDirection: 'row',
   },
   backButton: {
     backgroundColor: Styles.button.backgroundColor,
     padding: 8,
     borderRadius: 20,
+    marginRight: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

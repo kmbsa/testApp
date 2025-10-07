@@ -121,7 +121,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (userToken) {
         try {
           await internalFetchUserData(userToken);
-        } catch (e) {}
+        } catch (e) {
+          console.log(`Error: ${e}`);
+        }
       } else {
         console.log('AuthContext: userToken is null, clearing user data.');
         setUserData(null);
