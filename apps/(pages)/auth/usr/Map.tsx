@@ -86,11 +86,8 @@ export default function Map() {
   const [areaSoilType, setAreaSoilType] = useState('');
   const [areaSoilSuitability, setAreaSoilSuitability] = useState('');
 
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
-
   const provincesForSelectedRegion =
-    provincesByRegion.find((r) => r.region === selectedRegion)?.provinces || [];
+    provincesByRegion.find((r) => r.region === areaRegion)?.provinces || [];
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -123,6 +120,15 @@ export default function Map() {
   useEffect(() => {
     console.log('### FINAL Map Points state changed (from Context):', points);
   }, [points]);
+
+  useEffect(() => {
+    if (!areaRegion === null) {
+      console.log(areaRegion);
+    }
+    if (!areaProvince === null) {
+      console.log(areaProvince);
+    }
+  });
 
   const handleMapReady = () => {
     setMapLoaded(true);
@@ -319,8 +325,6 @@ export default function Map() {
     setAreaSoilSuitability('');
     setCurrentPage(1);
     setUserLocation(null);
-    setSelectedRegion(null);
-    setSelectedRegion(null);
     setAreaBarangay('');
     panY.setValue(0);
   }
@@ -588,15 +592,15 @@ export default function Map() {
           label: r.region,
           value: r.region,
         }))}
-        value={selectedRegion}
-        onValueChange={setSelectedRegion}
+        value={areaRegion}
+        onValueChange={setAreaRegion}
       />
       {/* PROVINCE INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
       <FormDropdown
         data={provincesForSelectedRegion}
-        value={selectedProvince}
-        onValueChange={setSelectedProvince}
+        value={areaProvince}
+        onValueChange={setAreaProvince}
         placeholder="Select province"
       />
       {/* BARANGAY INPUT */}
@@ -939,7 +943,7 @@ export default function Map() {
               {Platform.OS === 'ios' && (
                 <MaterialCommunityIcons
                   name="crosshairs-gps"
-                  size={30}
+                  size={0}
                   color="blue"
                 />
               )}
