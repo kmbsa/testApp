@@ -989,6 +989,29 @@ export default function Map() {
     </View>
   );
 
+  // Save Draft Handler
+  const handleSaveDraft = () => {
+    saveDraft(
+      getDraftData(
+        points,
+        [], // polylines (not used here)
+        points, // area (using points as area)
+        {
+          areaName,
+          areaRegion,
+          areaProvince,
+          areaBarangay,
+          areaOrganization,
+          areaSlope,
+          areaMasl,
+          areaSoilType,
+          areaSoilSuitability,
+        },
+        formPhotos.map((p) => p.uri),
+      ),
+    );
+  };
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
       <MapView
@@ -1079,7 +1102,25 @@ export default function Map() {
                   {
                     text: 'Save',
                     onPress: () => {
-                      handleSaveDraft();
+                      saveDraft(
+                        getDraftData(
+                          points,
+                          [], // polylines (not used here)
+                          points, // area (using points as area)
+                          {
+                            areaName,
+                            areaRegion,
+                            areaProvince,
+                            areaBarangay,
+                            areaOrganization,
+                            areaSlope,
+                            areaMasl,
+                            areaSoilType,
+                            areaSoilSuitability,
+                          },
+                          formPhotos.map((p) => p.uri),
+                        ),
+                      );
                       navigation.navigate('Home');
                     },
                   },
