@@ -8,6 +8,7 @@ import MapEntries from '../(pages)/auth/usr/MapEntries';
 import MapPreview from '../(pages)/auth/usr/[id]';
 import Weather from '../(pages)/auth/usr/Weather';
 import Test from '../(pages)/auth/tst/Test';
+import DraftsPage from '../(pages)/auth/usr/DraftsPage';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -50,6 +51,11 @@ function AuthenticatedUserStack() {
           name="WeatherPreview"
           component={Weather}
           options={{ title: 'Weather' }}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="DraftsPage"
+          component={DraftsPage}
+          options={{ title: 'Drafts' }}
         />
         <AuthenticatedUserFlowStack.Screen
           name="Test"

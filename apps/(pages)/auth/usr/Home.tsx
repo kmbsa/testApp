@@ -10,17 +10,17 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Styles from '../../../styles/styles';
 
 import { useAuth } from '../../../context/AuthContext';
-import {
-  HomeScreenProps,
-} from '../../../navigation/types';
+import { RootStackParamList } from '../../../navigation/types';
 
 function Home() {
   const { userData, signOut, isLoading } = useAuth();
 
-  const navigation = useNavigation<HomeScreenProps['navigation']>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   if (isLoading) {
     return (
@@ -49,9 +49,9 @@ function Home() {
       </Text>
       <TouchableOpacity
         style={Styles.button}
-        onPress={() => navigation.navigate('Map')}
+        onPress={() => navigation.navigate('DraftsPage')}
       >
-        <Text style={Styles.buttonText}>Go to Map Page</Text>
+        <Text style={Styles.buttonText}>Go to Drafts</Text>
       </TouchableOpacity>
 
       <TouchableOpacity

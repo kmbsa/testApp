@@ -45,6 +45,7 @@ export type RootStackParamList = {
   Registration: undefined;
   Map: { capturedPhotoUri?: string; capturedLocation?: Coordinate } | undefined;
   MapEntries: undefined;
+  DraftsPage: undefined;
   Camera: undefined;
   Loading: undefined;
   AuthenticatedStack: undefined;
@@ -82,6 +83,10 @@ export type AuthenticatedStackScreenProps = NativeStackScreenProps<
 export type MapsEntriesProps = NativeStackScreenProps<
   RootStackParamList,
   'MapEntries'
+>;
+export type DraftsPageProps = NativeStackScreenProps<
+  RootStackParamList,
+  'DraftsPage'
 >;
 export type MapPreviewProps = NativeStackScreenProps<
   RootStackParamList,

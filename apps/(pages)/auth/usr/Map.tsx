@@ -1,4 +1,75 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// Helper: Collect all data to save as draft
+type Marker = { latitude: number; longitude: number; [key: string]: any };
+type Polyline = Marker[];
+type Area = Marker[];
+type FormData = { [key: string]: any };
+type DraftData = {
+  markers: Marker[];
+  polylines: Polyline[];
+  area: Area;
+  form: FormData;
+  photos: string[];
+};
+
+const getDraftData = (
+  markers: Marker[],
+  polylines: Polyline[],
+  area: Area,
+  form: FormData,
+  photos: string[],
+): DraftData => ({
+  markers,
+  polylines,
+  area,
+  form,
+  photos,
+});
+
+// Save draft to AsyncStorage
+const saveDraft = async (draftData: DraftData) => {
+  try {
+    const draftKey = `draft_${Date.now()}`;
+    await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
+    // Optionally, keep a list of draft keys
+    let keysRaw = await AsyncStorage.getItem('draft_keys');
+    let keys: string[] = [];
+    if (keysRaw) {
+      try {
+        keys = JSON.parse(keysRaw);
+        if (!Array.isArray(keys)) keys = [];
+      } catch {
+        keys = [];
+      }
+    }
+    keys.push(draftKey);
+    await AsyncStorage.setItem('draft_keys', JSON.stringify(keys));
+    Alert.alert('Draft Saved', 'Your draft has been saved locally.');
+  } catch (e) {
+    Alert.alert('Error', 'Failed to save draft.');
+  }
+};
+
+// Load a draft by key
+const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
+  try {
+    const value = await AsyncStorage.getItem(draftKey);
+    if (value) {
+      return JSON.parse(value);
+    }
+    return null;
+  } catch (e) {
+    Alert.alert('Error', 'Failed to load draft.');
+    return null;
+  }
+};
+// Example usage in your component:
+// Add a button to save draft (adjust placement as needed)
+// <Button title="Save Draft" onPress={() => saveDraft(getDraftData(markers, polylines, area, form, photos))} />
+
+// To load a draft, call loadDraft(draftKey) and set state accordingly
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useRoute, CommonActions } from '@react-navigation/native';
 import {
   Platform,
   View,
@@ -17,7 +88,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { AntDesign, Entypo, EvilIcons } from '@expo/vector-icons';
+import { Entypo, EvilIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +120,14 @@ import { SoilSuitabilityData } from '../../../data/SoilSuitability';
 import { provincesByRegion } from '../../../data/Regions';
 
 export default function Map() {
+  // Get draft from navigation params
+  const route = useRoute();
+  const draftParam = (route.params as any)?.draft || null;
+
+  // Track unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Track if loaded from draft
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const navigation = useNavigation<RootStackNavigationProp>();
 
   const {
@@ -331,6 +410,28 @@ export default function Map() {
     panY.setValue(0);
   }
 
+  function defineAreaContents() {
+    const currentUserId = userData?.user_id;
+    const areaData = {
+      user_id: currentUserId,
+      name: areaName,
+      region: areaRegion,
+      province: areaProvince,
+      organization: areaOrganization,
+      slope: areaSlope,
+      masl: areaMasl,
+      soil_type: areaSoilType,
+      suitability: areaSoilSuitability,
+      coordinates: points,
+      photos: formPhotos.map((p) => ({
+        base64: p.base64,
+        mimeType: p.mimeType,
+        filename: p.filename,
+      })),
+    };
+    return areaData;
+  }
+
   const handleClearMap = () => {
     Alert.alert(
       'Clear Map',
@@ -401,23 +502,7 @@ export default function Map() {
 
     setIsSubmitting(true);
 
-    const areaData = {
-      user_id: currentUserId,
-      name: areaName,
-      region: areaRegion,
-      province: areaProvince,
-      organization: areaOrganization,
-      slope: areaSlope,
-      masl: areaMasl,
-      soil_type: areaSoilType,
-      suitability: areaSoilSuitability,
-      coordinates: points,
-      photos: formPhotos.map((p) => ({
-        base64: p.base64,
-        mimeType: p.mimeType,
-        filename: p.filename,
-      })),
-    };
+    const areaData = defineAreaContents();
 
     console.log(
       'Attempting to submit data:',
@@ -547,10 +632,27 @@ export default function Map() {
     if (mapRef.current) {
       try {
         const uri = await mapRef.current.takeSnapshot({
+          width: 500,
+          height: 500,
           format: 'png',
+          quality: 0.8,
+          result: 'file',
         });
-        setSnapshot(uri);
-        console.log(`Snapshot saved at: ${uri}`);
+        {
+          /*
+          Steps to do for saving everything in offline
+          1. Take a snapshot of the map (check).
+          2. Take the uri of that map snapshot and save it locally in the device.
+          3. Take all the coordinates data inside the array and save it locally.
+          4. Take all the inputs in the forms and save it locally.
+          5. Find a way to load it in the drafts.
+           */
+        }
+        setSnapshot(`${uri}`);
+        console.log(`Snapshot saved at: ${snapShot}`);
+        console.log(`${points}`);
+        const areaData = defineAreaContents();
+        console.log(`Area Data Contents: ${JSON.stringify(areaData, null, 2)}`);
       } catch (e) {
         console.log(`Snapshot Error: ${e}`);
       }
@@ -962,7 +1064,31 @@ export default function Map() {
 
       <SafeAreaView style={localStyles.backButtonContainer}>
         <TouchableOpacity
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => {
+            if (hasUnsavedChanges) {
+              Alert.alert(
+                'Unsaved Changes',
+                'You have unsaved changes. Would you like to save your draft before leaving?',
+                [
+                  { text: 'Cancel', style: 'cancel', onPress: () => {} },
+                  {
+                    text: 'Discard',
+                    style: 'destructive',
+                    onPress: () => navigation.navigate('Home'),
+                  },
+                  {
+                    text: 'Save',
+                    onPress: () => {
+                      handleSaveDraft();
+                      navigation.navigate('Home');
+                    },
+                  },
+                ],
+              );
+            } else {
+              navigation.navigate('Home');
+            }
+          }}
           style={localStyles.backButton}
         >
           <Ionicons
@@ -971,7 +1097,10 @@ export default function Map() {
             color={Styles.buttonText.color}
           />
         </TouchableOpacity>
-        <TouchableOpacity onPress={takeSnapshot} style={localStyles.backButton}>
+        <TouchableOpacity
+          onPress={handleSaveDraft}
+          style={localStyles.backButton}
+        >
           <Entypo name="save" size={30} color={Styles.buttonText.color} />
         </TouchableOpacity>
       </SafeAreaView>
@@ -1256,3 +1385,6 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
 });
+function setAreaProvince(arg0: any) {
+  throw new Error('Function not implemented.');
+}
