@@ -64,20 +64,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const checkToken = async () => {
       try {
-        console.log('AuthContext: Checking for token in AsyncStorage...');
-        const token = await AsyncStorage.getItem('token');
+        console.log(
+          'AuthContext: Checking for access_token in AsyncStorage...',
+        );
+        const token = await AsyncStorage.getItem('access_token');
         if (token) {
-          console.log('AuthContext: Token found.');
+          console.log('AuthContext: access_token found.');
           setUserToken(token);
-          // Fetch user data immediately if token is found
-          // The userToken effect below will handle fetching data
         } else {
-          console.log('AuthContext: No token found.');
+          console.log('AuthContext: No access_token found.');
         }
       } catch (e) {
-        console.error('AuthContext: Failed to load token from storage:', e);
+        console.error(
+          'AuthContext: Failed to load access_token from storage:',
+          e,
+        );
       } finally {
-        setIsLoading(false); // Initial check is complete
+        setIsLoading(false);
         console.log('AuthContext: Initial loading complete.');
       }
     };
@@ -88,10 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const internalFetchUserData = useCallback(async (token: string) => {
     setError(null); // Clear previous errors
     console.log('AuthContext: Fetching user data...');
+    console.log('AuthContext: Token being sent to backend:', token);
     try {
       const response = await axios.get<UserData>(`${API_URL}/auth/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log('AuthContext: /auth/user response:', response.data);
       setUserData(response.data);
       console.log(
         'AuthContext: User data fetched successfully:',
@@ -141,17 +146,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user: email,
         password: password,
       });
+      console.log('AuthContext: /auth/login response:', response.data);
 
-      if (response.data.token) {
-        const token = response.data.token;
-        console.log('AuthContext: Login successful, saving token...');
-        await AsyncStorage.setItem('token', token);
-        setUserToken(token);
-        console.log('AuthContext: Token saved and state updated.');
+      if (response.data.access_token) {
+        const accessToken = response.data.access_token;
+        console.log('AuthContext: Login successful, saving access_token...');
+        await AsyncStorage.setItem('access_token', accessToken);
+        setUserToken(accessToken);
+        console.log('AuthContext: access_token saved and state updated.');
       } else {
-        setError('Login failed: No token received from API.');
-        console.error('AuthContext: Login failed: No token received.');
-        throw new Error('Login failed: No token received.');
+        setError('Login failed: No access_token received from API.');
+        console.error('AuthContext: Login failed: No access_token received.');
+        throw new Error('Login failed: No access_token received.');
       }
     } catch (e: any) {
       console.error('AuthContext: Login API error:', e);
@@ -225,17 +231,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null);
     try {
       // Optional: Call backend logout endpoint (backend might invalidate the token)
-      // Need the token to call this, but we just cleared it in state.
-      // This highlights a potential edge case: if the backend logout fails, the token is still valid there.
-      // A better approach might be to send the token to backend BEFORE clearing state,
-      // or have backend invalidate based on user ID.
-      // For simplicity now, we'll just remove from storage.
-      console.log('AuthContext: Removing token from storage.');
-      await AsyncStorage.removeItem('token');
-      console.log('AuthContext: Token removed from AsyncStorage.');
+      // For JWT, you may want to call /auth/logout with the token
+      const token = await AsyncStorage.getItem('access_token');
+      if (token) {
+        try {
+          await axios.post(
+            `${API_URL}/auth/logout`,
+            {},
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+        } catch (logoutErr) {
+          console.warn(
+            'AuthContext: Backend logout failed or not implemented.',
+            logoutErr,
+          );
+        }
+      }
+      console.log('AuthContext: Removing access_token from storage.');
+      await AsyncStorage.removeItem('access_token');
+      console.log('AuthContext: access_token removed from AsyncStorage.');
     } catch (e) {
       console.error(
-        'AuthContext: Failed to remove token from storage or call backend logout:',
+        'AuthContext: Failed to remove access_token from storage or call backend logout:',
         e,
       );
     }

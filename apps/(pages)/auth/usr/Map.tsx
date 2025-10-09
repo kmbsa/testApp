@@ -46,7 +46,7 @@ const saveDraft = async (draftData: DraftData) => {
     await AsyncStorage.setItem('draft_keys', JSON.stringify(keys));
     Alert.alert('Draft Saved', 'Your draft has been saved locally.');
   } catch (e) {
-    Alert.alert('Error', 'Failed to save draft.');
+    Alert.alert('Error', `Failed to save draft.\n${e}`);
   }
 };
 
@@ -59,7 +59,7 @@ const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
     }
     return null;
   } catch (e) {
-    Alert.alert('Error', 'Failed to load draft.');
+    Alert.alert('Error', `Failed to load draft.\n${e}`);
     return null;
   }
 };
@@ -1426,6 +1426,3 @@ const localStyles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
 });
-function setAreaProvince(arg0: any) {
-  throw new Error('Function not implemented.');
-}
