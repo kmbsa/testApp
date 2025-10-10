@@ -1067,7 +1067,7 @@ export default function Map() {
         areaSoilType,
         areaSoilSuitability,
       },
-      formPhotos.map((p) => p.uri),
+      formPhotos.map((p) => ({ uri: p.uri })),
     );
     saveDraft(draftData);
     setHasUnsavedChanges(false);

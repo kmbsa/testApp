@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Platform,
   View,
   Text,
   StyleSheet,
@@ -22,6 +23,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import axios from 'axios';
 
 import { API_URL, Weather_API_KEY } from '@env';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 import {
@@ -393,6 +395,7 @@ export default function AreaDetailsScreen() {
           ref={mapRef}
           style={localStyles.map}
           initialRegion={getInitialRegion()}
+          mapType="hybrid"
           onMapReady={() => {
             if (mapCoordinates.length > 0 && mapRef.current) {
               mapRef.current.fitToCoordinates(mapCoordinates, {
@@ -410,7 +413,17 @@ export default function AreaDetailsScreen() {
             />
           )}
           {mapCoordinates.map((coord, index) => (
-            <Marker key={`coord-${index}`} coordinate={coord} pinColor="red" />
+            <Marker key={`coord-${index}`} coordinate={coord} pinColor="red">
+              {Platform.OS === 'ios' && (
+                <View>
+                  <MaterialCommunityIcons
+                    name="map-marker"
+                    size={30}
+                    color="red"
+                  />
+                </View>
+              )}
+            </Marker>
           ))}
         </MapView>
 
