@@ -9,7 +9,7 @@ type DraftData = {
   polylines: Polyline[];
   area: Area;
   form: FormData;
-  photos: string[];
+  photos: { uri: string }[];
 };
 
 const getDraftData = (
@@ -17,7 +17,7 @@ const getDraftData = (
   polylines: Polyline[],
   area: Area,
   form: FormData,
-  photos: string[],
+  photos: { uri: string }[],
 ): DraftData => ({
   markers,
   polylines,
@@ -29,7 +29,13 @@ const getDraftData = (
 // Save draft to AsyncStorage
 const saveDraft = async (draftData: DraftData) => {
   try {
-    const draftKey = `draft_${Date.now()}`;
+    let userId = null;
+    try {
+      userId = draftData.form?.user_id || null;
+    } catch {}
+    const draftKey = userId
+      ? `draft_${userId}_${Date.now()}`
+      : `draft_${Date.now()}`;
     await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
     // Optionally, keep a list of draft keys
     let keysRaw = await AsyncStorage.getItem('draft_keys');
@@ -41,6 +47,10 @@ const saveDraft = async (draftData: DraftData) => {
       } catch {
         keys = [];
       }
+    }
+    if (draftData.photos && draftData.photos.length > 0) {
+      const photoKey = `draft_${draftKey}_photo`;
+      await AsyncStorage.setItem(photoKey, draftData.photos[0].uri);
     }
     keys.push(draftKey);
     await AsyncStorage.setItem('draft_keys', JSON.stringify(keys));
@@ -55,7 +65,14 @@ const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
   try {
     const value = await AsyncStorage.getItem(draftKey);
     if (value) {
-      return JSON.parse(value);
+      const draftData = JSON.parse(value);
+      // Retrieve the URI of the photo from the draft data
+      const photoKey = `draft_${draftKey}_photo`;
+      const photoUri = await AsyncStorage.getItem(photoKey);
+      if (photoUri) {
+        draftData.photos = [{ uri: photoUri }];
+      }
+      return draftData;
     }
     return null;
   } catch (e) {
@@ -63,13 +80,9 @@ const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
     return null;
   }
 };
-// Example usage in your component:
-// Add a button to save draft (adjust placement as needed)
-// <Button title="Save Draft" onPress={() => saveDraft(getDraftData(markers, polylines, area, form, photos))} />
 
-// To load a draft, call loadDraft(draftKey) and set state accordingly
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useRoute, CommonActions } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import {
   Platform,
   View,
@@ -123,6 +136,52 @@ export default function Map() {
   // Get draft from navigation params
   const route = useRoute();
   const draftParam = (route.params as any)?.draft || null;
+  // Restore state from draft if present
+  useEffect(() => {
+    if (draftParam) {
+      // Restore points (area)
+      if (Array.isArray(draftParam.area)) {
+        resetPoints();
+        // Add each point from draft
+        draftParam.area.forEach((pt: any) => {
+          if (
+            pt &&
+            typeof pt.latitude === 'number' &&
+            typeof pt.longitude === 'number'
+          ) {
+            addPoint({ ...pt });
+          }
+        });
+      }
+      // Restore form fields
+      if (draftParam.form) {
+        setAreaName(draftParam.form.areaName || '');
+        setAreaRegion(draftParam.form.areaRegion || null);
+        setAreaProvince(draftParam.form.areaProvince || null);
+        setAreaBarangay(draftParam.form.areaBarangay || '');
+        setAreaOrganization(draftParam.form.areaOrganization || '');
+        setAreaSlope(draftParam.form.areaSlope || '');
+        setAreaMasl(draftParam.form.areaMasl || '');
+        setAreaSoilType(draftParam.form.areaSoilType || '');
+        setAreaSoilSuitability(draftParam.form.areaSoilSuitability || '');
+      }
+      // Restore photos
+      if (Array.isArray(draftParam.photos)) {
+        // formPhotos is managed by context, so clear and add
+        clearFormPhotos();
+        draftParam.photos.forEach((uri: string) => {
+          if (uri) {
+            // Provide placeholder width/height (e.g., 100), or retrieve actual values if available
+            addFormPhoto({ uri, width: 100, height: 100 });
+          }
+        });
+      }
+      // If the draft is a completed shape, set isComplete
+      if (draftParam.area && draftParam.area.length >= 3) {
+        setIsComplete(true);
+      }
+    }
+  }, [draftParam]);
 
   // Track unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -990,27 +1049,46 @@ export default function Map() {
   );
 
   // Save Draft Handler
+  // Always use latest state for draft
   const handleSaveDraft = () => {
-    saveDraft(
-      getDraftData(
-        points,
-        [], // polylines (not used here)
-        points, // area (using points as area)
-        {
-          areaName,
-          areaRegion,
-          areaProvince,
-          areaBarangay,
-          areaOrganization,
-          areaSlope,
-          areaMasl,
-          areaSoilType,
-          areaSoilSuitability,
-        },
-        formPhotos.map((p) => p.uri),
-      ),
+    const draftData = getDraftData(
+      [...points],
+      [],
+      [...points],
+      {
+        user_id: userData?.user_id ?? null,
+        areaName,
+        areaRegion,
+        areaProvince,
+        areaBarangay,
+        areaOrganization,
+        areaSlope,
+        areaMasl,
+        areaSoilType,
+        areaSoilSuitability,
+      },
+      formPhotos.map((p) => p.uri),
     );
+    saveDraft(draftData);
+    setHasUnsavedChanges(false);
   };
+
+  // Track unsaved changes on any form or points update
+  useEffect(() => {
+    setHasUnsavedChanges(true);
+  }, [
+    points,
+    areaName,
+    areaRegion,
+    areaProvince,
+    areaBarangay,
+    areaOrganization,
+    areaSlope,
+    areaMasl,
+    areaSoilType,
+    areaSoilSuitability,
+    formPhotos,
+  ]);
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -1097,30 +1175,15 @@ export default function Map() {
                   {
                     text: 'Discard',
                     style: 'destructive',
-                    onPress: () => navigation.navigate('Home'),
+                    onPress: () => {
+                      setHasUnsavedChanges(false);
+                      navigation.navigate('Home');
+                    },
                   },
                   {
                     text: 'Save',
                     onPress: () => {
-                      saveDraft(
-                        getDraftData(
-                          points,
-                          [], // polylines (not used here)
-                          points, // area (using points as area)
-                          {
-                            areaName,
-                            areaRegion,
-                            areaProvince,
-                            areaBarangay,
-                            areaOrganization,
-                            areaSlope,
-                            areaMasl,
-                            areaSoilType,
-                            areaSoilSuitability,
-                          },
-                          formPhotos.map((p) => p.uri),
-                        ),
-                      );
+                      handleSaveDraft();
                       navigation.navigate('Home');
                     },
                   },
