@@ -52,11 +52,18 @@ export default function DraftsPage({ navigation }: any) {
           keys = [];
         }
       }
-      // Filter keys by user if needed
-      const userId = userData?.user_id;
-      const userDraftKeys = userId
-        ? keys.filter((k) => k.includes(`_${userId}_`))
-        : keys;
+      const userId = userData?.user_id ? String(userData.user_id) : null;
+      // Debug log
+      console.log('[DraftsPage] Loaded keys:', keys);
+      console.log('[DraftsPage] userId:', userId);
+      // Show all drafts if userId is not set
+      let userDraftKeys: string[];
+      if (userId) {
+        userDraftKeys = keys.filter((k) => k.startsWith(`draft_${userId}_`));
+      } else {
+        userDraftKeys = keys;
+      }
+      console.log('[DraftsPage] Filtered userDraftKeys:', userDraftKeys);
       const draftPairs = await AsyncStorage.multiGet(userDraftKeys);
       const draftList: DraftListItem[] = draftPairs
         .map(([key, value]) => {

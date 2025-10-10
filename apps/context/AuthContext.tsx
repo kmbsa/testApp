@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const internalFetchUserData = useCallback(async (token: string) => {
     setError(null); // Clear previous errors
     console.log('AuthContext: Fetching user data...');
-    console.log('AuthContext: Token being sent to backend:', token);
+    // console.log('AuthContext: Token being sent to backend:', token);
     try {
       const response = await axios.get<UserData>(`${API_URL}/auth/user`, {
         headers: { Authorization: `Bearer ${token}` },
