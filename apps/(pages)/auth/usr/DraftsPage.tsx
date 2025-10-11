@@ -11,19 +11,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../../context/AuthContext';
 
-// Types should match those in Map.tsx
-
-type Marker = { latitude: number; longitude: number; [key: string]: any };
-type Polyline = Marker[];
-type Area = Marker[];
-type FormData = { [key: string]: any };
-type DraftData = {
-  markers: Marker[];
-  polylines: Polyline[];
-  area: Area;
-  form: FormData;
-  photos: string[];
-};
+import { Marker, Polyline, Area, DraftData } from './Map';
 
 type DraftListItem = {
   key: string;

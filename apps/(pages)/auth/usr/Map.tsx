@@ -1,15 +1,35 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Alert } from 'react-native'; // Import Alert for error messages
+
 // Helper: Collect all data to save as draft
-type Marker = { latitude: number; longitude: number; [key: string]: any };
-type Polyline = Marker[];
-type Area = Marker[];
-type FormData = { [key: string]: any };
-type DraftData = {
+export type Marker = {
+  latitude: number;
+  longitude: number;
+  [key: string]: any;
+};
+export type Polyline = Marker[];
+export type Area = Marker[];
+export type FormData = { [key: string]: any };
+
+// This is the in-memory/context type
+export type PhotoData = {
+  base64: string; // Used in-memory/context
+  uri: string; // Used in-memory/context
+};
+
+// This is the main in-memory DraftData structure
+export type DraftData = {
   markers: Marker[];
   polylines: Polyline[];
   area: Area;
   form: FormData;
-  photos: { uri: string }[];
+  photos: PhotoData[]; // In-memory uses the object array
+};
+
+// Type for the data as it appears when LOADED from AsyncStorage (photos will be string[])
+type StoredDraftData = Omit<DraftData, 'photos'> & {
+  photos: string[]; // Stored data only contains string URIs
 };
 
 const getDraftData = (
@@ -17,7 +37,7 @@ const getDraftData = (
   polylines: Polyline[],
   area: Area,
   form: FormData,
-  photos: { uri: string }[],
+  photos: PhotoData[],
 ): DraftData => ({
   markers,
   polylines,
@@ -26,17 +46,95 @@ const getDraftData = (
   photos,
 });
 
-// Save draft to AsyncStorage
+// Base path for all drafts (using the correct persistent directory)
+const DRAFT_DIR_BASE = `${FileSystem.documentDirectory}drafts/`;
+
+// Helper function to construct the unique directory path for a draft
+const getDraftDirectory = (draftId: string): string => {
+  return `${DRAFT_DIR_BASE}${draftId}/`;
+};
+
+// Save draft to AsyncStorage - CORRECTED FUNCTION
 const saveDraft = async (draftData: DraftData) => {
   try {
     let userId = null;
     try {
       userId = draftData.form?.user_id || null;
     } catch {}
+
+    // Use the draftKey as the folder name to maintain consistency
     const draftKey = userId
       ? `draft_${userId}_${Date.now()}`
       : `draft_${Date.now()}`;
-    await AsyncStorage.setItem(draftKey, JSON.stringify(draftData));
+
+    const draftImageDir = getDraftDirectory(draftKey);
+
+    // 1. Create the unique directory for this draft's images
+    await FileSystem.makeDirectoryAsync(draftImageDir, { intermediates: true });
+
+    const newPhotoData: PhotoData[] = [];
+
+    // 2. Iterate and copy ALL photos
+    for (const photo of draftData.photos) {
+      // Use const for variables that won't change
+      const originalUri: string = photo.uri;
+
+      // A. Check if the file is already persistent (a loaded draft being re-saved)
+      if (originalUri.startsWith(DRAFT_DIR_BASE)) {
+        newPhotoData.push(photo);
+        continue;
+      }
+
+      // B. This is a NEW photo. Copy it.
+
+      // Get the filename using pure JavaScript string manipulation
+      const parts = originalUri.split('/');
+      const filename =
+        parts[parts.length - 1] || `photo_${Date.now()}_${Math.random()}.jpg`;
+
+      const newPhotoUri = `${draftImageDir}${filename}`;
+
+      // CRITICAL FIX: Pass simple string URIs to copyAsync
+      await FileSystem.copyAsync({
+        from: originalUri, // The temporary URI string
+        to: newPhotoUri, // The new, permanent URI string
+      });
+
+      // 3. Update Base64 (Optional: Re-read base64 from the new persistent file if needed)
+      // Use 'let' because we might reassign it
+      let base64 = photo.base64;
+      if (!base64 && newPhotoUri) {
+        try {
+          base64 = await FileSystem.readAsStringAsync(newPhotoUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (e) {
+          console.warn('Could not read base64 after copy:', e);
+          base64 = '';
+        }
+      }
+
+      // Store the final persistent data object (with base64, even if empty, for context)
+      newPhotoData.push({ uri: newPhotoUri, base64: base64 });
+    }
+
+    // 4. CRITICAL FIX: Prepare data for AsyncStorage by converting PhotoData[] to string[]
+    const photoUrisForStorage: string[] = newPhotoData.map((p) => p.uri);
+
+    const finalDraftDataForStorage: StoredDraftData = {
+      markers: draftData.markers,
+      polylines: draftData.polylines,
+      area: draftData.area,
+      form: { ...draftData.form, draftKey: draftKey },
+      photos: photoUrisForStorage, // <-- Store only the string URIs
+    };
+
+    // 5. Save the final draft data
+    await AsyncStorage.setItem(
+      draftKey,
+      JSON.stringify(finalDraftDataForStorage),
+    );
+
     // Optionally, keep a list of draft keys
     let keysRaw = await AsyncStorage.getItem('draft_keys');
     let keys: string[] = [];
@@ -48,31 +146,58 @@ const saveDraft = async (draftData: DraftData) => {
         keys = [];
       }
     }
-    if (draftData.photos && draftData.photos.length > 0) {
-      const photoKey = `draft_${draftKey}_photo`;
-      await AsyncStorage.setItem(photoKey, draftData.photos[0].uri);
+    if (!keys.includes(draftKey)) {
+      keys.push(draftKey);
     }
-    keys.push(draftKey);
+
     await AsyncStorage.setItem('draft_keys', JSON.stringify(keys));
     Alert.alert('Draft Saved', 'Your draft has been saved locally.');
   } catch (e) {
+    console.error('Failed to save draft and images:', e);
     Alert.alert('Error', `Failed to save draft.\n${e}`);
   }
 };
 
-// Load a draft by key
 const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
   try {
     const value = await AsyncStorage.getItem(draftKey);
     if (value) {
-      const draftData = JSON.parse(value);
-      // Retrieve the URI of the photo from the draft data
-      const photoKey = `draft_${draftKey}_photo`;
-      const photoUri = await AsyncStorage.getItem(photoKey);
-      if (photoUri) {
-        draftData.photos = [{ uri: photoUri }];
+      const storedData: StoredDraftData = JSON.parse(value);
+
+      // CRITICAL FIX: Convert string URI array back to PhotoData[] object array
+      const loadedPhotos: PhotoData[] = [];
+      if (Array.isArray(storedData.photos)) {
+        // Use Promise.all to load all base64 data concurrently
+        const photoPromises = storedData.photos.map(async (uri: string) => {
+          let base64 = '';
+          try {
+            // Read base64 data from the persistent file URI
+            base64 = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          } catch (e) {
+            console.warn(`Could not read base64 for photo ${uri}:`, e);
+            // On failure, base64 remains empty, but the URI is still valid
+          }
+          // The context needs objects with 'uri' and 'base64'.
+          return { uri: uri, base64: base64 };
+        });
+
+        // Wait for all Base64 reads to complete
+        const resolvedPhotos = await Promise.all(photoPromises);
+        loadedPhotos.push(...resolvedPhotos);
       }
-      return draftData;
+
+      // Reconstruct the DraftData object before returning
+      const finalDraftData: DraftData = {
+        markers: storedData.markers,
+        polylines: storedData.polylines,
+        area: storedData.area,
+        form: storedData.form,
+        photos: loadedPhotos, // Photos now include base64 for context/display
+      };
+
+      return finalDraftData;
     }
     return null;
   } catch (e) {
@@ -92,7 +217,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   TouchableOpacity,
-  Alert,
   StyleSheet,
   Image,
   ScrollView,
@@ -1067,7 +1191,7 @@ export default function Map() {
         areaSoilType,
         areaSoilSuitability,
       },
-      formPhotos.map((p) => ({ uri: p.uri })),
+      formPhotos.map((p) => ({ uri: p.uri, base64: p.base64 })),
     );
     saveDraft(draftData);
     setHasUnsavedChanges(false);
