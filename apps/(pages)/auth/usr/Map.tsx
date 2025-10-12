@@ -28,7 +28,7 @@ export type DraftData = {
 };
 
 // Type for the data as it appears when LOADED from AsyncStorage (photos will be string[])
-type StoredDraftData = Omit<DraftData, 'photos'> & {
+export type StoredDraftData = Omit<DraftData, 'photos'> & {
   photos: string[]; // Stored data only contains string URIs
 };
 
@@ -62,10 +62,13 @@ const saveDraft = async (draftData: DraftData) => {
       userId = draftData.form?.user_id || null;
     } catch {}
 
-    // Use the draftKey as the folder name to maintain consistency
+    const userDraftName =
+      draftData.form?.draftName?.replace(/[^a-z0-9]/gi, '_').toLowerCase() ||
+      'untitled';
+
     const draftKey = userId
-      ? `draft_${userId}_${Date.now()}`
-      : `draft_${Date.now()}`;
+      ? `draft_${userId}_${userDraftName}_${Date.now()}` // Key for authenticated user
+      : `draft_anon_${userDraftName}_${Date.now()}`; // Key for unauthenticated/offline user
 
     const draftImageDir = getDraftDirectory(draftKey);
 
@@ -288,6 +291,7 @@ export default function Map() {
         setAreaMasl(draftParam.form.areaMasl || '');
         setAreaSoilType(draftParam.form.areaSoilType || '');
         setAreaSoilSuitability(draftParam.form.areaSoilSuitability || '');
+        setDraftName(draftParam.form.draftName || '');
       }
       // Restore photos
       if (Array.isArray(draftParam.photos)) {
@@ -347,6 +351,7 @@ export default function Map() {
   const [areaMasl, setAreaMasl] = useState('');
   const [areaSoilType, setAreaSoilType] = useState('');
   const [areaSoilSuitability, setAreaSoilSuitability] = useState('');
+  const [draftName, setDraftName] = useState('');
 
   const provincesForSelectedRegion =
     provincesByRegion.find((r) => r.region === areaRegion)?.provinces || [];
@@ -1181,6 +1186,7 @@ export default function Map() {
       [...points],
       {
         user_id: userData?.user_id ?? null,
+        draftName,
         areaName,
         areaRegion,
         areaProvince,
@@ -1301,7 +1307,7 @@ export default function Map() {
                     style: 'destructive',
                     onPress: () => {
                       setHasUnsavedChanges(false);
-                      navigation.navigate('Home');
+                      navigation.navigate('DraftsPage');
                     },
                   },
                   {

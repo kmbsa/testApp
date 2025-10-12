@@ -32,9 +32,6 @@ import {
   Coordinate,
 } from '../../../navigation/types';
 
-// Updated type definition to include weather code
-// NOTE: Assuming this type is defined in your Weather.tsx file,
-// you should update that file's content to match this interface.
 export interface WeatherValues {
   temperature?: number;
   humidity?: number;
