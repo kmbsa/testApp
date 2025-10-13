@@ -8,40 +8,37 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  FlatList, 
+  FlatList,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { SafeAreaView } from 'react-native-safe-area-context'; 
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as FileSystem from 'expo-file-system/legacy';
 import { MaterialIcons } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useAuth } from '../../../context/AuthContext';
-// Note: DraftData and StoredDraftData types are exported from Map.tsx, so we import them here
-import { DraftData, StoredDraftData } from './Map'; 
 
-// Assuming styles.ts exports a flat object of style sheets (Styles.container, Styles.formBox, etc.)
-import Styles from '../../../styles/styles'; 
+import { DraftData, StoredDraftData } from './Map';
 
-// --- APP STYLE CONSTANTS (Extracted from styles.ts) ---
+import Styles from '../../../styles/styles';
+
 const AppColors = {
-  primary: '#3D550C',      // Dark Green (from formBox bg, buttonText color)
-  secondary: '#F4D03F',    // Yellow/Gold (from text, accent color)
-  background: '#F5F5DC',   // Light Beige (from container background)
-  formInput: '#FFFFFF',    // White (from inputFields background)
-  textPrimary: '#3D550C',  // Primary text color (same as primary)
-  textSecondary: '#666666',// Standard neutral color (used for icons/metadata)
-  danger: 'red',           // For delete buttons
-  border: '#3D550C',       // Standard border color
-  shadow: '#000000',       // Standard shadow color
+  primary: '#3D550C',
+  secondary: '#F4D03F',
+  background: '#F5F5DC',
+  formInput: '#FFFFFF',
+  textPrimary: '#3D550C',
+  textSecondary: '#666666',
+  danger: 'red',
+  border: '#3D550C',
+  shadow: '#000000',
 };
 
 // Consolidated structure
 const AppConstants = {
   colors: AppColors,
-  padding: { horizontal: 10 }, 
-  shadow: { 
+  padding: { horizontal: 10 },
+  shadow: {
     shadowColor: AppColors.shadow,
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -49,28 +46,25 @@ const AppConstants = {
   },
 };
 
-
 // --- TYPE DEFINITIONS ---
 type DraftListItem = {
   key: string; // The AsyncStorage key
   data: DraftData; // The actual draft content
 };
 
-
 // --- CONSTANTS ---
 const DRAFT_KEYS_KEY = 'draft_keys'; // Key storing the array of all draft keys
 const DRAFT_DIR_BASE = `${FileSystem.documentDirectory}drafts/`; // Directory for file deletion
 
-
 // --- MAIN COMPONENT ---
 export default function DraftsPage({ navigation }: any) {
-  const { userData } = useAuth();
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedDraftKeys, setSelectedDraftKeys] = useState<string[]>([]);
   const [isRenaming, setIsRenaming] = useState(false);
-  const [currentDraftToRename, setCurrentDraftToRename] = useState<DraftListItem | null>(null);
+  const [currentDraftToRename, setCurrentDraftToRename] =
+    useState<DraftListItem | null>(null);
   const [newDraftName, setNewDraftName] = useState('');
 
   // --- DRAFT LOADING LOGIC ---
@@ -99,7 +93,10 @@ export default function DraftsPage({ navigation }: any) {
           try {
             const data: DraftData = JSON.parse(value);
             // Fallback for draftName if not present
-            const name = data.form?.draftName || key.split('_').slice(2, -1).join(' ') || 'Untitled Draft';
+            const name =
+              data.form?.draftName ||
+              key.split('_').slice(2, -1).join(' ') ||
+              'Untitled Draft';
             data.form = { ...data.form, draftName: name }; // Ensure name is always set
             return {
               key,
@@ -124,8 +121,8 @@ export default function DraftsPage({ navigation }: any) {
     loadDrafts();
     // Clear selection when leaving the page
     const unsubscribe = navigation.addListener('blur', () => {
-        setIsEditMode(false);
-        setSelectedDraftKeys([]);
+      setIsEditMode(false);
+      setSelectedDraftKeys([]);
     });
     return unsubscribe;
   }, [navigation]);
@@ -138,12 +135,12 @@ export default function DraftsPage({ navigation }: any) {
       return;
     }
     // Pass the full DraftData and key to the Map screen
-    navigation.navigate('Map', { draft: draft.data, draftKey: draft.key }); 
+    navigation.navigate('Map', { draft: draft.data, draftKey: draft.key });
   };
 
   const handleToggleSelect = (key: string) => {
     setSelectedDraftKeys((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   };
 
@@ -171,17 +168,22 @@ export default function DraftsPage({ navigation }: any) {
               const updatedKeys = drafts
                 .map((d) => d.key)
                 .filter((key) => !keysToDelete.includes(key));
-              
-              await AsyncStorage.setItem(DRAFT_KEYS_KEY, JSON.stringify(updatedKeys));
-              
+
+              await AsyncStorage.setItem(
+                DRAFT_KEYS_KEY,
+                JSON.stringify(updatedKeys),
+              );
+
               // Remove the associated physical files
               keysToDelete.forEach(async (key) => {
                 const draftDir = `${DRAFT_DIR_BASE}${key}`;
-                await FileSystem.deleteAsync(draftDir, { idempotent: true }); 
+                await FileSystem.deleteAsync(draftDir, { idempotent: true });
               });
 
               // Update state and clear selection
-              setDrafts((prev) => prev.filter((d) => !keysToDelete.includes(d.key)));
+              setDrafts((prev) =>
+                prev.filter((d) => !keysToDelete.includes(d.key)),
+              );
               setSelectedDraftKeys([]);
               setIsEditMode(false);
             } catch (e) {
@@ -190,7 +192,7 @@ export default function DraftsPage({ navigation }: any) {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -213,25 +215,33 @@ export default function DraftsPage({ navigation }: any) {
       const draftRaw = await AsyncStorage.getItem(currentDraftToRename.key);
       if (!draftRaw) throw new Error('Draft not found during rename.');
 
-      const storedData: StoredDraftData = JSON.parse(draftRaw); 
-      
+      const storedData: StoredDraftData = JSON.parse(draftRaw);
+
       // 2. Update the draft name in the form data
       const updatedData: StoredDraftData = {
-          ...storedData,
-          form: { ...storedData.form, draftName: newDraftName.trim() }
+        ...storedData,
+        form: { ...storedData.form, draftName: newDraftName.trim() },
       };
 
       // 3. Save the updated data back to AsyncStorage
-      await AsyncStorage.setItem(currentDraftToRename.key, JSON.stringify(updatedData));
-      
-      // 4. Update the local component state
-      setDrafts(prev => prev.map(d => 
-        d.key === currentDraftToRename.key 
-          ? { ...d, data: { ...d.data, form: updatedData.form } }
-          : d
-      ));
+      await AsyncStorage.setItem(
+        currentDraftToRename.key,
+        JSON.stringify(updatedData),
+      );
 
-      Alert.alert('Success', `Draft successfully renamed to "${newDraftName.trim()}"`);
+      // 4. Update the local component state
+      setDrafts((prev) =>
+        prev.map((d) =>
+          d.key === currentDraftToRename.key
+            ? { ...d, data: { ...d.data, form: updatedData.form } }
+            : d,
+        ),
+      );
+
+      Alert.alert(
+        'Success',
+        `Draft successfully renamed to "${newDraftName.trim()}"`,
+      );
     } catch (e) {
       console.error('Rename error:', e);
       Alert.alert('Error', 'Failed to rename the draft.');
@@ -242,15 +252,14 @@ export default function DraftsPage({ navigation }: any) {
     }
   };
 
-
   // --- RENDER FUNCTIONS ---
 
   const renderDraftItem = ({ item }: { item: DraftListItem }) => {
     const isSelected = selectedDraftKeys.includes(item.key);
-    
+
     // Check for required data (for display)
     const markerCount = item.data.markers?.length || 0;
-    const photoCount = item.data.photos?.length || 0; 
+    const photoCount = item.data.photos?.length || 0;
 
     return (
       <TouchableOpacity
@@ -260,53 +269,70 @@ export default function DraftsPage({ navigation }: any) {
         ]}
         onPress={() => handleOpenDraft(item)}
         // Long press now only toggles edit mode if not already in it, otherwise it does nothing.
-        onLongPress={() => !isEditMode && setIsEditMode(true)} 
+        onLongPress={() => !isEditMode && setIsEditMode(true)}
       >
         {/* SELECTION CHECKBOX (Only visible in edit mode) */}
         {isEditMode && (
-          <TouchableOpacity 
-            onPress={() => handleToggleSelect(item.key)} 
+          <TouchableOpacity
+            onPress={() => handleToggleSelect(item.key)}
             style={localStyles.iconContainer}
           >
-            <MaterialIcons 
-              name={isSelected ? 'check-box' : 'check-box-outline-blank'} 
-              size={24} 
-              color={isSelected ? AppConstants.colors.secondary : AppConstants.colors.textSecondary} 
+            <MaterialIcons
+              name={isSelected ? 'check-box' : 'check-box-outline-blank'}
+              size={24}
+              color={
+                isSelected
+                  ? AppConstants.colors.secondary
+                  : AppConstants.colors.textSecondary
+              }
             />
           </TouchableOpacity>
         )}
-        
+
         {/* DRAFT CONTENT */}
-        <View style={[localStyles.draftContent, !isEditMode && {paddingLeft: 0}]}>
+        <View
+          style={[localStyles.draftContent, !isEditMode && { paddingLeft: 0 }]}
+        >
           {/* DRAFT NAME */}
           <Text style={localStyles.draftName} numberOfLines={1}>
             {item.data.form?.draftName || 'Untitled Draft'}
           </Text>
-          
+
           {/* METADATA */}
           <View style={localStyles.metadataRow}>
             <Text style={localStyles.metadataText}>
-              <FontAwesome5 name="map-marker-alt" size={12} color={AppConstants.colors.textSecondary} /> 
+              <FontAwesome5
+                name="map-marker-alt"
+                size={12}
+                color={AppConstants.colors.textSecondary}
+              />
               {` ${markerCount} Points`}
             </Text>
             <Text style={localStyles.metadataText}>
-              <MaterialIcons name="photo" size={14} color={AppConstants.colors.textSecondary} /> 
+              <MaterialIcons
+                name="photo"
+                size={14}
+                color={AppConstants.colors.textSecondary}
+              />
               {/* NOTE: We check the length of the photos array from the DraftData */}
-              {` ${photoCount} Photos`} 
+              {` ${photoCount} Photos`}
             </Text>
           </View>
         </View>
-        
+
         {/* ACTIONS (Rename) */}
         {isEditMode && (
-          <TouchableOpacity 
-            onPress={() => handleStartRename(item)} 
-            style={[localStyles.iconContainer, {marginLeft: 10}]}
+          <TouchableOpacity
+            onPress={() => handleStartRename(item)}
+            style={[localStyles.iconContainer, { marginLeft: 10 }]}
           >
-            <MaterialIcons name="edit" size={20} color={AppConstants.colors.textSecondary} />
+            <MaterialIcons
+              name="edit"
+              size={20}
+              color={AppConstants.colors.textSecondary}
+            />
           </TouchableOpacity>
         )}
-
       </TouchableOpacity>
     );
   };
@@ -314,23 +340,26 @@ export default function DraftsPage({ navigation }: any) {
   // --- MAIN RENDER ---
 
   return (
-    <SafeAreaView style={localStyles.safeArea}> 
+    <SafeAreaView style={localStyles.safeArea}>
       <View style={localStyles.container}>
-        
         {/* HEADER AREA */}
         <View style={localStyles.header}>
           {/* NEW: BACK BUTTON */}
           <TouchableOpacity
             style={localStyles.backButton}
             // Navigate directly to the 'Home' screen
-            onPress={() => navigation.navigate('Home')} 
+            onPress={() => navigation.navigate('Home')}
           >
-            <MaterialIcons name="arrow-back" size={28} color={AppConstants.colors.primary} />
+            <MaterialIcons
+              name="arrow-back"
+              size={28}
+              color={AppConstants.colors.primary}
+            />
           </TouchableOpacity>
 
           {/* CENTERED TITLE */}
           <Text style={localStyles.title}>Drafts</Text>
-          
+
           {/* RIGHT: EDIT/DONE BUTTON */}
           <TouchableOpacity
             style={localStyles.editButton}
@@ -347,15 +376,19 @@ export default function DraftsPage({ navigation }: any) {
 
         {/* LIST & LOADING STATE */}
         {loading ? (
-          <ActivityIndicator size="large" color={AppConstants.colors.secondary} style={{ marginTop: 50 }} />
+          <ActivityIndicator
+            size="large"
+            color={AppConstants.colors.secondary}
+            style={{ marginTop: 50 }}
+          />
         ) : drafts.length === 0 ? (
           <View style={localStyles.emptyState}>
             <Text style={localStyles.emptyText}>No drafts found.</Text>
-            <TouchableOpacity 
-              style={[Styles.button, localStyles.newDraftButton]} 
+            <TouchableOpacity
+              style={[Styles.button, localStyles.newDraftButton]}
               onPress={() => navigation.navigate('Map', { draft: null })}
             >
-              <Text style={Styles.buttonText}>Start New Map Input</Text> 
+              <Text style={Styles.buttonText}>Start New Map Input</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -371,23 +404,23 @@ export default function DraftsPage({ navigation }: any) {
         <View style={localStyles.bottomBar}>
           {isEditMode && selectedDraftKeys.length > 0 ? (
             <TouchableOpacity
-              style={[Styles.button, localStyles.deleteButton]} 
+              style={[Styles.button, localStyles.deleteButton]}
               onPress={() => handleDeleteDrafts(selectedDraftKeys)}
             >
-              <Text style={Styles.buttonText}> 
+              <Text style={Styles.buttonText}>
                 Delete Selected ({selectedDraftKeys.length})
               </Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[Styles.button, localStyles.newDraftButton]} 
+              style={[Styles.button, localStyles.newDraftButton]}
               onPress={() => navigation.navigate('Map', { draft: null })}
             >
-              <Text style={Styles.buttonText}>Start New Map Input</Text> 
+              <Text style={Styles.buttonText}>Start New Map Input</Text>
             </TouchableOpacity>
           )}
         </View>
-        
+
         {/* RENAME MODAL */}
         <Modal
           visible={isRenaming}
@@ -401,30 +434,29 @@ export default function DraftsPage({ navigation }: any) {
               <TextInput
                 style={localStyles.modalInput}
                 placeholder="Enter new draft name"
-                placeholderTextColor={AppConstants.colors.textSecondary} 
+                placeholderTextColor={AppConstants.colors.textSecondary}
                 value={newDraftName}
                 onChangeText={setNewDraftName}
                 autoFocus
               />
               <View style={localStyles.modalButtonContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[Styles.button, localStyles.modalCancelButton]}
                   onPress={() => setIsRenaming(false)}
                 >
-                  <Text style={Styles.buttonText}>Cancel</Text> 
+                  <Text style={Styles.buttonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[Styles.button, localStyles.modalConfirmButton]}
                   onPress={handleFinishRename}
                   disabled={!newDraftName.trim()}
                 >
-                  <Text style={Styles.buttonText}>Confirm</Text> 
+                  <Text style={Styles.buttonText}>Confirm</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
-
       </View>
     </SafeAreaView>
   );
@@ -434,11 +466,11 @@ export default function DraftsPage({ navigation }: any) {
 const localStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: AppConstants.colors.background, 
+    backgroundColor: AppConstants.colors.background,
   },
   container: {
     flex: 1,
-    paddingHorizontal: AppConstants.padding.horizontal, 
+    paddingHorizontal: AppConstants.padding.horizontal,
   },
   header: {
     flexDirection: 'row',
@@ -446,7 +478,7 @@ const localStyles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: AppConstants.colors.border, 
+    borderBottomColor: AppConstants.colors.border,
     marginBottom: 10,
     position: 'relative', // Necessary for absolute positioning of the title
   },
@@ -457,9 +489,9 @@ const localStyles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: AppConstants.colors.primary, 
+    color: AppConstants.colors.primary,
     // Absolute positioning to center the title regardless of button sizes
-    position: 'absolute', 
+    position: 'absolute',
     left: 0,
     right: 0,
     textAlign: 'center',
@@ -468,15 +500,15 @@ const localStyles = StyleSheet.create({
   editButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: AppConstants.colors.formInput, 
-    shadowColor: AppConstants.colors.shadow, 
+    backgroundColor: AppConstants.colors.formInput,
+    shadowColor: AppConstants.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
     zIndex: 10, // Ensures the button is tappable
   },
   editButtonText: {
-    color: AppConstants.colors.primary, 
+    color: AppConstants.colors.primary,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -486,15 +518,15 @@ const localStyles = StyleSheet.create({
   draftItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: AppConstants.colors.formInput, 
+    backgroundColor: AppConstants.colors.formInput,
     padding: 15,
     borderRadius: 12,
     marginBottom: 10,
-    ...AppConstants.shadow, 
+    ...AppConstants.shadow,
   },
   draftItemSelected: {
     borderWidth: 3,
-    borderColor: AppConstants.colors.secondary, 
+    borderColor: AppConstants.colors.secondary,
   },
   draftContent: {
     flex: 1,
@@ -503,7 +535,7 @@ const localStyles = StyleSheet.create({
   draftName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: AppConstants.colors.textPrimary, 
+    color: AppConstants.colors.textPrimary,
     marginBottom: 5,
   },
   metadataRow: {
@@ -513,7 +545,7 @@ const localStyles = StyleSheet.create({
   },
   metadataText: {
     fontSize: 12,
-    color: AppConstants.colors.textSecondary, 
+    color: AppConstants.colors.textSecondary,
     marginRight: 15,
   },
   iconContainer: {
@@ -525,18 +557,18 @@ const localStyles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 15,
-    backgroundColor: AppConstants.colors.background, 
+    backgroundColor: AppConstants.colors.background,
     borderTopWidth: 1,
-    borderTopColor: AppConstants.colors.border, 
+    borderTopColor: AppConstants.colors.border,
   },
   newDraftButton: {
     width: '100%',
-    marginTop: 0, 
+    marginTop: 0,
   },
   deleteButton: {
     width: '100%',
-    backgroundColor: AppConstants.colors.danger, 
-    marginTop: 0, 
+    backgroundColor: AppConstants.colors.danger,
+    marginTop: 0,
   },
   emptyState: {
     flex: 1,
@@ -546,7 +578,7 @@ const localStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: AppConstants.colors.textSecondary, 
+    color: AppConstants.colors.textSecondary,
     marginBottom: 20,
   },
   // --- Modal Styles ---
@@ -559,28 +591,28 @@ const localStyles = StyleSheet.create({
   modalContent: {
     width: '85%',
     maxWidth: 400,
-    backgroundColor: AppConstants.colors.background, 
+    backgroundColor: AppConstants.colors.background,
     borderRadius: 20,
     padding: 25,
     alignItems: 'center',
-    ...AppConstants.shadow, 
+    ...AppConstants.shadow,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: AppConstants.colors.primary, 
+    color: AppConstants.colors.primary,
     marginBottom: 20,
   },
   modalInput: {
     width: '100%',
-    backgroundColor: AppConstants.colors.formInput, 
+    backgroundColor: AppConstants.colors.formInput,
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
     fontSize: 16,
-    color: AppConstants.colors.textPrimary, 
+    color: AppConstants.colors.textPrimary,
     borderWidth: 1,
-    borderColor: AppConstants.colors.border, 
+    borderColor: AppConstants.colors.border,
   },
   modalButtonContainer: {
     flexDirection: 'row',
@@ -590,14 +622,14 @@ const localStyles = StyleSheet.create({
   modalConfirmButton: {
     flex: 1,
     marginLeft: 10,
-    marginTop: 0, 
+    marginTop: 0,
     paddingVertical: 12,
   },
   modalCancelButton: {
     flex: 1,
     marginRight: 10,
-    backgroundColor: AppConstants.colors.textSecondary, 
-    marginTop: 0, 
+    backgroundColor: AppConstants.colors.textSecondary,
+    marginTop: 0,
     paddingVertical: 12,
   },
 });

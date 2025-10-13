@@ -351,6 +351,8 @@ export default function Map() {
   const [areaMasl, setAreaMasl] = useState('');
   const [areaSoilType, setAreaSoilType] = useState('');
   const [areaSoilSuitability, setAreaSoilSuitability] = useState('');
+  const [areaInHectares, setAreaInHectares] = useState(0);
+
   const [draftName, setDraftName] = useState('');
 
   const provincesForSelectedRegion =
@@ -569,13 +571,6 @@ export default function Map() {
   };
 
   const handleOpenForm = () => {
-    if (!isComplete) {
-      Alert.alert(
-        'Shape Not Complete',
-        'Please complete plotting the shape before filling out the form.',
-      );
-      return;
-    }
     setModalVisible(true);
     panY.setValue(0);
     setCurrentPage(1); // Ensure it opens on page 1
@@ -1404,43 +1399,38 @@ export default function Map() {
         </View>
       </SafeAreaView>
 
-      {/* Forms Button after completing */}
-      {isComplete && (
-        <TouchableOpacity
-          style={[Styles.button, localStyles.openFormButton]}
-          onPress={handleOpenForm}
-        >
-          <Ionicons
-            name="document-text-outline"
-            size={24}
-            color={Styles.buttonText.color}
-            style={{ marginRight: 5 }}
-          />
-          <Text style={Styles.buttonText}>Open Form</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[Styles.button, localStyles.openFormButton]}
+        onPress={handleOpenForm}
+      >
+        <Ionicons
+          name="document-text-outline"
+          size={24}
+          color={Styles.buttonText.color}
+          style={{ marginRight: 5 }}
+        />
+        <Text style={Styles.buttonText}>Open Form</Text>
+      </TouchableOpacity>
 
-      {!isComplete && (
-        <TouchableOpacity
-          style={[
-            Styles.button,
-            localStyles.openFormButton,
-            {
-              opacity:
-                new Set(points.map((p) => `${p.latitude},${p.longitude}`))
-                  .size >= 3
-                  ? 1
-                  : 0.5,
-            },
-          ]}
-          onPress={handleCompletePlotting}
-          disabled={
-            new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3
-          }
-        >
-          <Text style={Styles.buttonText}>Complete Shape</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[
+          Styles.button,
+          localStyles.completeShapeButton,
+          {
+            opacity:
+              new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size >=
+              3
+                ? 1
+                : 0.5,
+          },
+        ]}
+        onPress={handleCompletePlotting}
+        disabled={
+          new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3
+        }
+      >
+        <Text style={Styles.buttonText}>Complete Shape</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[
@@ -1547,6 +1537,19 @@ const localStyles = StyleSheet.create({
     marginRight: 10,
   },
   openFormButton: {
+    position: 'absolute',
+    bottom: 180,
+    left: 20,
+    right: 20,
+    width: undefined,
+    marginTop: 0,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  completeShapeButton: {
     position: 'absolute',
     bottom: 120,
     left: 20,

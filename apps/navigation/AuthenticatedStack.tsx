@@ -5,7 +5,7 @@ import Home from '../(pages)/auth/usr/Home';
 import Map from '../(pages)/auth/usr/Map';
 import Camera from '../(pages)/auth/usr/Camera';
 import MapEntries from '../(pages)/auth/usr/MapEntries';
-import MapPreview from '../(pages)/auth/usr/[id]';
+import MapPreview from '../(pages)/auth/usr/MapView';
 import Weather from '../(pages)/auth/usr/Weather';
 import Test from '../(pages)/auth/tst/Test';
 import DraftsPage from '../(pages)/auth/usr/DraftsPage';
