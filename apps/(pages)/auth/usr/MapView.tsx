@@ -99,10 +99,27 @@ const getWeatherIcon = (weatherCode: number | undefined): string => {
 };
 
 export default function AreaDetailsScreen() {
-  const { userToken, signOut } = useAuth();
   const navigation = useNavigation<MapPreviewProps['navigation']>();
   const route = useRoute<MapPreviewProps['route']>();
   const insets = useSafeAreaInsets();
+  const { userToken, signOut } = useAuth();
+
+  const [areaData, setAreaData] = useState<AreaEntry | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
+  const [isWeatherLoading, setIsWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+
+  const [ongoingCropsCount, setOngoingCropsCount] = useState<number | null>(
+    null,
+  );
+  const [isCropsLoading, setIsCropsLoading] = useState(false);
+  const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
+
+  const mapRef = useRef<MapView | null>(null);
 
   const areaId =
     typeof route.params?.areaId === 'number'
@@ -110,16 +127,6 @@ export default function AreaDetailsScreen() {
       : route.params && typeof route.params.areaId === 'string'
         ? parseInt(route.params.areaId, 10)
         : 0;
-
-  const [areaData, setAreaData] = useState<AreaEntry | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
-  const [isWeatherLoading, setIsWeatherLoading] = useState(false);
-  const [weatherError, setWeatherError] = useState<string | null>(null);
-
-  const mapRef = useRef<MapView | null>(null);
 
   const fetchAreaDetails = useCallback(async () => {
     setIsLoading(true);
@@ -146,8 +153,7 @@ export default function AreaDetailsScreen() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/area/${areaId}`, {
-        method: 'GET',
+      const response = await axios.get(`${API_URL}/api/area/${areaId}`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
@@ -169,14 +175,14 @@ export default function AreaDetailsScreen() {
         return;
       }
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (!response.data) {
+        const errorText = await response.data;
         throw new Error(
           `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`,
         );
       }
 
-      const data = await response.json();
+      const data = await response.data;
       setAreaData(data.area);
 
       // Log image Filepaths to console for debugging
@@ -215,6 +221,30 @@ export default function AreaDetailsScreen() {
       setIsLoading(false);
     }
   }, [areaId, userToken, signOut]);
+
+  const fetchOngoingCropsCount = useCallback(async () => {
+    setIsCropsLoading(true);
+    setCropsFetchError(null);
+    try {
+      const response = await axios.get<{ count: number }>(
+        `${API_URL}/area/farm_harvest_crop_count/harvest_id=${areaId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      setOngoingCropsCount(response.data.count);
+    } catch (error) {
+      console.error('Failed to fetch ongoing crop count:', error);
+      setCropsFetchError('Failed to fetch crop data.');
+      setOngoingCropsCount(0); // Default to 0 on error
+    } finally {
+      setIsCropsLoading(false);
+    }
+  }, []);
 
   const fetchCurrentWeather = useCallback(async (location: Coordinate) => {
     setIsWeatherLoading(true);
@@ -281,7 +311,8 @@ export default function AreaDetailsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchAreaDetails();
-    }, [fetchAreaDetails]),
+      fetchOngoingCropsCount();
+    }, [fetchAreaDetails, fetchOngoingCropsCount]),
   );
 
   const getInitialRegion = ():
@@ -306,7 +337,7 @@ export default function AreaDetailsScreen() {
       longitude: 121.774,
       latitudeDelta: 10.0,
       longitudeDelta: 10.0,
-    }; // Default Philippines region
+    };
   };
 
   if (isLoading) {
@@ -520,6 +551,41 @@ export default function AreaDetailsScreen() {
                   No images associated with this entry.
                 </Text>
               )}
+              {/* === Farm Activity Section === */}
+              <View style={localStyles.farmActivityContainer}>
+                <Text style={localStyles.modalTitle}>Farm Activity Status</Text>
+                {isCropsLoading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={Styles.button.backgroundColor}
+                  />
+                ) : cropsFetchError ? (
+                  <Text style={localStyles.errorText}>{cropsFetchError}</Text>
+                ) : (
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>Ongoing Crops:</Text>{' '}
+                    {/* Display the count, defaulting to 0 */}
+                    {ongoingCropsCount !== null ? ongoingCropsCount : 'N/A'}
+                  </Text>
+                )}
+                {/* Button to navigate to FarmActivityScreen */}
+                <TouchableOpacity
+                  style={[
+                    Styles.button,
+                    localStyles.farmActivityButton, // New style for modal button
+                  ]}
+                  onPress={() => {
+                    // Navigate to the FarmActivity screen
+                    navigation.navigate('FarmActivity');
+                    setModalVisible(false); // Close the modal before navigating
+                  }}
+                >
+                  <Text style={Styles.buttonText}>
+                    Go to Farm Activity Input
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Weather Section */}
               <View style={localStyles.weatherContainer}>
                 <Text style={localStyles.modalTitle}>Current Weather</Text>
@@ -559,6 +625,19 @@ export default function AreaDetailsScreen() {
                     </TouchableOpacity>
                   </>
                 ) : null}
+                <TouchableOpacity
+                  style={[
+                    Styles.button,
+                    localStyles.seeFarmsButton, // Define this new style below
+                  ]}
+                  onPress={() => {
+                    // NOTE: Replace 'FarmActivity' with the actual name of the screen
+                    // as defined in your React Navigation stack navigator.
+                    navigation.navigate('FarmActivity');
+                  }}
+                >
+                  <Text style={Styles.buttonText}>See Farms & Activity</Text>
+                </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
@@ -723,5 +802,31 @@ const localStyles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  seeFarmsButton: {
+    position: 'absolute',
+    bottom: 60, // Position it above the Complete Shape button (if it's at the bottom)
+    left: 20,
+    right: 20,
+    width: undefined,
+    marginTop: 0,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    backgroundColor: '#F4D03F',
+  },
+  farmActivityContainer: {
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    marginTop: 15, // A bit of space from the images
+    alignItems: 'center',
+  },
+  farmActivityButton: {
+    width: '100%',
+    marginTop: 15,
+    backgroundColor: '#F4D03F', // Use your accent color
   },
 });

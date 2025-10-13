@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_URL } from '@env';
+import axios from 'axios';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 import { AreaEntry, RootStackNavigationProp } from '../../../navigation/types';
@@ -160,31 +161,14 @@ export default function MapEntriesScreen() {
           url += `&search=${encodeURIComponent(query)}`;
         }
 
-        const response = await fetch(url, {
-          method: 'GET',
+        const response = await axios.get(url, {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
           },
         });
 
-        if (response.status === 401 || response.status === 403) {
-          Alert.alert(
-            'Session Expired',
-            'Your session has expired. Please log in again.',
-          );
-          await signOut();
-          return;
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `Server responded with status ${response.status}: ${errorText || 'Unknown Error'}`,
-          );
-        }
-
-        const data = await response.json();
+        const data = response.data;
 
         if (page === 1) {
           setEntries(data.entries);
@@ -195,11 +179,31 @@ export default function MapEntriesScreen() {
         setCurrentPage(data.page);
         setHasMore(data.has_more);
       } catch (err: any) {
-        console.error('Failed to fetch entries:', err);
-        setError(
-          err.message ||
-            'Failed to load entries. Please check your network connection.',
-        );
+        // Axios error handling
+        if (axios.isAxiosError(err)) {
+          const status = err.response?.status;
+
+          if (status === 401 || status === 403) {
+            Alert.alert(
+              'Session Expired',
+              'Your session has expired. Please log in again.',
+            );
+            await signOut();
+            return;
+          }
+
+          console.error('Axios error response:', err.response);
+          setError(
+            err.response?.data?.message ||
+              'Failed to load entries. Please check your network connection.',
+          );
+        } else {
+          console.error('Unexpected error:', err);
+          setError(
+            err.message ||
+              'Failed to load entries. Please check your network connection.',
+          );
+        }
       } finally {
         setIsLoading(false);
         setIsFetchingMore(false);
