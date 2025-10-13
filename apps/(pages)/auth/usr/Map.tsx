@@ -161,54 +161,6 @@ const saveDraft = async (draftData: DraftData) => {
   }
 };
 
-const loadDraft = async (draftKey: string): Promise<DraftData | null> => {
-  try {
-    const value = await AsyncStorage.getItem(draftKey);
-    if (value) {
-      const storedData: StoredDraftData = JSON.parse(value);
-
-      // CRITICAL FIX: Convert string URI array back to PhotoData[] object array
-      const loadedPhotos: PhotoData[] = [];
-      if (Array.isArray(storedData.photos)) {
-        // Use Promise.all to load all base64 data concurrently
-        const photoPromises = storedData.photos.map(async (uri: string) => {
-          let base64 = '';
-          try {
-            // Read base64 data from the persistent file URI
-            base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          } catch (e) {
-            console.warn(`Could not read base64 for photo ${uri}:`, e);
-            // On failure, base64 remains empty, but the URI is still valid
-          }
-          // The context needs objects with 'uri' and 'base64'.
-          return { uri: uri, base64: base64 };
-        });
-
-        // Wait for all Base64 reads to complete
-        const resolvedPhotos = await Promise.all(photoPromises);
-        loadedPhotos.push(...resolvedPhotos);
-      }
-
-      // Reconstruct the DraftData object before returning
-      const finalDraftData: DraftData = {
-        markers: storedData.markers,
-        polylines: storedData.polylines,
-        area: storedData.area,
-        form: storedData.form,
-        photos: loadedPhotos, // Photos now include base64 for context/display
-      };
-
-      return finalDraftData;
-    }
-    return null;
-  } catch (e) {
-    Alert.alert('Error', `Failed to load draft.\n${e}`);
-    return null;
-  }
-};
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useRoute } from '@react-navigation/native';
 import {
@@ -236,6 +188,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '@env';
 import axios, { AxiosError } from 'axios';
+import * as turf from '@turf/turf';
 import FormDropdown from '../../../components/FormDropdown';
 import FormButton from '../../../components/FormButton';
 
@@ -401,6 +354,50 @@ export default function Map() {
     }
   });
 
+  /**
+   * Calculates the area of the closed polygon in hectares using Turf.js.
+   * @param coordinates The array of Coordinate objects forming the polygon.
+   * @returns The area in hectares.
+   */
+  const calculateAreaInHectares = (coordinates: Coordinate[]): number => {
+    if (coordinates.length < 3) {
+      return 0;
+    }
+
+    // 1. Convert RN Maps format to GeoJSON format: [[lon, lat], ...]
+    // Turf.js expects the coordinates to be in [longitude, latitude] format.
+    let geojsonCoords = coordinates.map((c) => [c.longitude, c.latitude]);
+
+    // 2. CRITICAL FIX: Ensure the loop is closed by duplicating the first point
+    const firstPoint = geojsonCoords[0];
+    const lastPoint = geojsonCoords[geojsonCoords.length - 1];
+
+    // Compare coordinates. Note: JavaScript array/object comparison uses reference,
+    // so compare the actual longitude/latitude values.
+    if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+      // If the first and last points are not the same, append the first point
+      geojsonCoords = [...geojsonCoords, firstPoint];
+    }
+
+    // 3. Create the Turf.js Polygon object
+    // Turf.js expects the coordinates wrapped in an extra array for the outer ring
+    try {
+      const polygon = turf.polygon([geojsonCoords]);
+
+      // 4. Calculate geodesic area in square meters (m²)
+      const areaSqMeters = turf.area(polygon);
+
+      // 5. Convert to hectares (1 ha = 10,000 m²)
+      const areaHectares = areaSqMeters / 10000;
+
+      return areaHectares;
+    } catch (error) {
+      console.error('Turf.js Calculation Error:', error);
+      // Return 0 or re-throw a clearer error if needed
+      return 0;
+    }
+  };
+
   const handleMapReady = () => {
     setMapLoaded(true);
     if (mapRef.current && points.length === 0) {
@@ -553,6 +550,9 @@ export default function Map() {
       '>>> Map: Completing shape via button press. Calling context.closePolygon()',
     );
     closePolygon();
+
+    const calculatedArea = calculateAreaInHectares([...points]);
+    setAreaInHectares(calculatedArea);
 
     Alert.alert(
       'Shape Completed',
@@ -784,22 +784,10 @@ export default function Map() {
   ).current;
 
   const handleNextPage = () => {
-    if (currentPage === 2 && !areaSlope.trim() && !areaMasl.trim()) {
-      Alert.alert('Missing Information', 'Please fill out all the fields');
-      return;
-    }
-    if (
-      currentPage === 1 &&
-      !areaName.trim() &&
-      !areaRegion === null &&
-      !areaProvince === null &&
-      !areaOrganization.trim()
-    ) {
-      Alert.alert('Missing Information', 'Please fill out all the fields');
-      return;
-    }
     if (currentPage != 3) {
       setCurrentPage((prev) => prev + 1);
+    } else {
+      setCurrentPage(1);
     }
   };
 
@@ -1138,6 +1126,16 @@ export default function Map() {
         onValueChange={(val) => {
           setAreaSoilSuitability(val);
         }}
+      />
+      {/* SOIL SUITABILITY DROPDOWN */}
+      <Text style={[Styles.text, localStyles.formLabels]}>Hectares</Text>
+      <TextInput
+        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
+        placeholder="Automatic filled on completion"
+        placeholderTextColor="#8b8b8bff"
+        value={String(areaInHectares)}
+        multiline={false}
+        editable={false}
       />
       {/* PAGE SWITCH BUTTONS */}
       <View style={[Styles.twoButtonContainer]}>
