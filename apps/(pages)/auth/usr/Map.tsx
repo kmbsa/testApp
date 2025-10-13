@@ -12,24 +12,21 @@ export type Polyline = Marker[];
 export type Area = Marker[];
 export type FormData = { [key: string]: any };
 
-// This is the in-memory/context type
 export type PhotoData = {
-  base64: string; // Used in-memory/context
-  uri: string; // Used in-memory/context
+  base64: string;
+  uri: string;
 };
 
-// This is the main in-memory DraftData structure
 export type DraftData = {
   markers: Marker[];
   polylines: Polyline[];
   area: Area;
   form: FormData;
-  photos: PhotoData[]; // In-memory uses the object array
+  photos: PhotoData[];
 };
 
-// Type for the data as it appears when LOADED from AsyncStorage (photos will be string[])
 export type StoredDraftData = Omit<DraftData, 'photos'> & {
-  photos: string[]; // Stored data only contains string URIs
+  photos: string[];
 };
 
 const getDraftData = (
@@ -46,15 +43,12 @@ const getDraftData = (
   photos,
 });
 
-// Base path for all drafts (using the correct persistent directory)
 const DRAFT_DIR_BASE = `${FileSystem.documentDirectory}drafts/`;
 
-// Helper function to construct the unique directory path for a draft
 const getDraftDirectory = (draftId: string): string => {
   return `${DRAFT_DIR_BASE}${draftId}/`;
 };
 
-// Save draft to AsyncStorage - CORRECTED FUNCTION
 const saveDraft = async (draftData: DraftData) => {
   try {
     let userId = null;
@@ -67,8 +61,8 @@ const saveDraft = async (draftData: DraftData) => {
       'untitled';
 
     const draftKey = userId
-      ? `draft_${userId}_${userDraftName}_${Date.now()}` // Key for authenticated user
-      : `draft_anon_${userDraftName}_${Date.now()}`; // Key for unauthenticated/offline user
+      ? `draft_${userId}_${userDraftName}_${Date.now()}`
+      : `draft_anon_${userDraftName}_${Date.now()}`;
 
     const draftImageDir = getDraftDirectory(draftKey);
 
@@ -99,12 +93,11 @@ const saveDraft = async (draftData: DraftData) => {
 
       // CRITICAL FIX: Pass simple string URIs to copyAsync
       await FileSystem.copyAsync({
-        from: originalUri, // The temporary URI string
-        to: newPhotoUri, // The new, permanent URI string
+        from: originalUri,
+        to: newPhotoUri,
       });
 
       // 3. Update Base64 (Optional: Re-read base64 from the new persistent file if needed)
-      // Use 'let' because we might reassign it
       let base64 = photo.base64;
       if (!base64 && newPhotoUri) {
         try {
@@ -129,7 +122,7 @@ const saveDraft = async (draftData: DraftData) => {
       polylines: draftData.polylines,
       area: draftData.area,
       form: { ...draftData.form, draftKey: draftKey },
-      photos: photoUrisForStorage, // <-- Store only the string URIs
+      photos: photoUrisForStorage,
     };
 
     // 5. Save the final draft data
@@ -608,6 +601,7 @@ export default function Map() {
       slope: areaSlope,
       masl: areaMasl,
       soil_type: areaSoilType,
+      hectares: areaInHectares,
       suitability: areaSoilSuitability,
       coordinates: points,
       photos: formPhotos.map((p) => ({
@@ -1420,16 +1414,18 @@ export default function Map() {
           Styles.button,
           localStyles.completeShapeButton,
           {
-            opacity:
-              new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size >=
-              3
+            opacity: isComplete
+              ? 0.5
+              : new Set(points.map((p) => `${p.latitude},${p.longitude}`))
+                    .size >= 3
                 ? 1
                 : 0.5,
           },
         ]}
         onPress={handleCompletePlotting}
         disabled={
-          new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3
+          new Set(points.map((p) => `${p.latitude},${p.longitude}`)).size < 3 ||
+          isComplete
         }
       >
         <Text style={Styles.buttonText}>Complete Shape</Text>
