@@ -474,6 +474,9 @@ export default function Map() {
         '>>> Map: Tapped first marker to complete shape. Calling context.closePolygon()',
       );
       closePolygon();
+
+      const calculatedArea = calculateAreaInHectares([...points]);
+      setAreaInHectares(calculatedArea);
     } else {
       console.log(`>>> Map: Tapped marker at index ${index} while plotting.`);
     }
@@ -587,9 +590,10 @@ export default function Map() {
     setAreaMasl('');
     setAreaSoilType('');
     setAreaSoilSuitability('');
+    setAreaBarangay('');
     setCurrentPage(1);
     setUserLocation(null);
-    setAreaBarangay('');
+    setAreaInHectares(0);
     panY.setValue(0);
   }
 
@@ -1057,6 +1061,7 @@ export default function Map() {
         onChangeText={setAreaSlope}
         keyboardType="numeric"
         multiline={false}
+        maxLength={2}
       />
 
       {/* MASL INPUT */}
@@ -1127,7 +1132,7 @@ export default function Map() {
           setAreaSoilSuitability(val);
         }}
       />
-      {/* SOIL SUITABILITY DROPDOWN */}
+      {/* HECTARES INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Hectares</Text>
       <TextInput
         style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
