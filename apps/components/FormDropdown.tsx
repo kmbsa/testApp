@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { Dropdown } from 'react-native-element-dropdown';
 
 export type DropdownItem = {
+  label: string;
   value: string;
   disabled?: boolean;
 };
@@ -13,7 +14,10 @@ export type FormDropdownProps = {
   value?: string | null;
   placeholder?: string;
   dependentOnValue?: string | null;
-  filterData?: (data: any[], dependentValue: string | null) => DropdownItem[];
+  filterData?: (
+    data: DropdownItem[],
+    dependentValue: string | null,
+  ) => DropdownItem[];
 };
 
 const DropdownComponent: React.FC<FormDropdownProps> = ({

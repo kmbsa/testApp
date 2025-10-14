@@ -153,7 +153,7 @@ export default function AreaDetailsScreen() {
     }
 
     try {
-      const response = await axios.get(`${API_URL}/api/area/${areaId}`, {
+      const response = await axios.get(`${API_URL}/area/${areaId}`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
@@ -625,19 +625,6 @@ export default function AreaDetailsScreen() {
                     </TouchableOpacity>
                   </>
                 ) : null}
-                <TouchableOpacity
-                  style={[
-                    Styles.button,
-                    localStyles.seeFarmsButton, // Define this new style below
-                  ]}
-                  onPress={() => {
-                    // NOTE: Replace 'FarmActivity' with the actual name of the screen
-                    // as defined in your React Navigation stack navigator.
-                    navigation.navigate('FarmActivity');
-                  }}
-                >
-                  <Text style={Styles.buttonText}>See Farms & Activity</Text>
-                </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
