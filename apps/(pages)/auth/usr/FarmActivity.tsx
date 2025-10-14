@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_URL } from '@env';
@@ -22,6 +22,7 @@ import DropdownComponent, {
 } from '../../../components/FormDropdown';
 import { philippineCrops } from '../../../data/Crops';
 
+// --- Utility: Flatten Crops data for Dropdown ---
 const getAllCropOptions = (): DropdownItem[] => {
   const allCropNames = [
     ...philippineCrops.vegetables,
@@ -65,10 +66,13 @@ export default function FarmActivityManagerScreen() {
   // --- Form State ---
   const [newCrop, setNewCrop] = useState<string | null>(null);
   const [sowDate, setSowDate] = useState(new Date());
-  const [harvestDate, setHarvestDate] = useState(new Date());
+  const [harvestDate, setHarvestDate] = useState(
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 1 week later
+  );
   const [showSowDatePicker, setShowSowDatePicker] = useState(false);
   const [showHarvestDatePicker, setShowHarvestDatePicker] = useState(false);
 
+  // 🚨 API Fetching Function
   const fetchHarvestData = async () => {
     if (!token) {
       Alert.alert(
@@ -81,8 +85,7 @@ export default function FarmActivityManagerScreen() {
 
     setIsLoading(true);
     try {
-      // Corrected route to use farm_id
-      const url = `${API_URL}/area/farm_harvest/farm_id=${farmId}`;
+      const url = `${API_URL}/area/farm_harvest/area_id=${farmId}`;
       const response = await axios.get<{ harvests: HarvestRecord[] }>(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -102,32 +105,48 @@ export default function FarmActivityManagerScreen() {
     }
   };
 
+  // --- Initial Data Fetch ---
   useEffect(() => {
     fetchHarvestData();
   }, [farmId, token]);
 
-  // --- Date Picker Handlers ---
+  // Helper to format date into YYYY-MM-DD
+  const formatDate = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  // --- Date Picker Handlers (with Validation) ---
   const onSowDateChange = (event: any, selectedDate?: Date) => {
     setShowSowDatePicker(false);
     if (selectedDate) {
-      setSowDate(selectedDate);
+      // 🚨 Validation: Sow Date must be before Harvest Date
       if (selectedDate >= harvestDate) {
+        Alert.alert(
+          'Invalid Date',
+          'Sow Date must be before the Expected Harvest Date.',
+        );
+        // Automatically set Harvest Date 7 days later
         setHarvestDate(
           new Date(selectedDate.getTime() + 7 * 24 * 60 * 60 * 1000),
         );
       }
+      setSowDate(selectedDate);
     }
   };
 
   const onHarvestDateChange = (event: any, selectedDate?: Date) => {
     setShowHarvestDatePicker(false);
     if (selectedDate) {
+      // 🚨 Validation: Harvest Date must be after Sow Date
+      if (selectedDate <= sowDate) {
+        Alert.alert(
+          'Invalid Date',
+          'Expected Harvest Date must be after the Sow Date.',
+        );
+        return; // Do not update state if invalid
+      }
       setHarvestDate(selectedDate);
     }
-  };
-
-  const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
   };
 
   // --- Form Submission Handler ---
@@ -136,6 +155,8 @@ export default function FarmActivityManagerScreen() {
       Alert.alert('Missing Fields', 'Please select a crop and both dates.');
       return;
     }
+
+    // Final date validation before submission
     if (sowDate >= harvestDate) {
       Alert.alert('Invalid Dates', 'Harvest date must be after sow date.');
       return;
@@ -150,16 +171,33 @@ export default function FarmActivityManagerScreen() {
 
     setIsSubmitting(true);
 
+    // 🚨 Determine Status based on current date (business rule)
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day for comparison
+    const normalizedSowDate = new Date(sowDate);
+    normalizedSowDate.setHours(0, 0, 0, 0);
+
+    let statusToSubmit: 'Planned' | 'Ongoing' | 'Completed';
+
+    if (currentDate.getTime() < normalizedSowDate.getTime()) {
+      statusToSubmit = 'Planned';
+    } else if (currentDate.getTime() >= normalizedSowDate.getTime()) {
+      // If today is Sow Date or later, it's ongoing (assuming it's not harvest day yet)
+      statusToSubmit = 'Ongoing';
+    } else {
+      // Fallback, though the logic above should cover most cases
+      statusToSubmit = 'Planned';
+    }
+
     try {
       const payload = {
-        Area_ID: farmId, // Assuming Area_ID is the foreign key for the farm/area
-        cropName: newCrop,
-        Sow_Date: formatDate(sowDate),
-        Expected_Harvest_Date: formatDate(harvestDate),
-        Status: 'Planned',
+        area_id: farmId,
+        crop_type: newCrop,
+        sow_date: formatDate(sowDate),
+        harvest_date: formatDate(harvestDate),
+        status: statusToSubmit,
       };
 
-      // Assuming your POST route is just /area/farm_harvest
       await axios.post(`${API_URL}/area/farm_harvest`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -169,21 +207,27 @@ export default function FarmActivityManagerScreen() {
 
       await fetchHarvestData();
 
-      Alert.alert('Success', `Activity for ${newCrop} saved.`);
+      Alert.alert(
+        'Success',
+        `Activity for ${newCrop} saved with status: ${statusToSubmit}.`,
+      );
 
       setNewCrop(null);
       setSowDate(new Date());
-      setHarvestDate(new Date());
+      setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setIsFormVisible(false);
-    } catch (error) {
+    } catch (error: AxiosError) {
+      const errorMessage =
+        error.response?.data?.message ||
+        'Failed to save activity. Please try again.';
       console.error('Submission failed:', error);
-      Alert.alert('Error', 'Failed to save activity. Please try again.');
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // --- Rendering Functions ---
+  // --- Rendering Functions (Unchanged) ---
   const renderHarvestRecord = (record: HarvestRecord) => (
     <View key={record.Harvest_ID} style={localStyles.recordCard}>
       <View style={localStyles.recordHeader}>
@@ -242,6 +286,7 @@ export default function FarmActivityManagerScreen() {
           mode="date"
           display="default"
           onChange={onSowDateChange}
+          // The maximum date is dynamically enforced in onSowDateChange
         />
       )}
 
@@ -261,7 +306,7 @@ export default function FarmActivityManagerScreen() {
           mode="date"
           display="default"
           onChange={onHarvestDateChange}
-          minimumDate={sowDate}
+          minimumDate={sowDate} // 🚨 Validation: Minimum date must be Sow Date
         />
       )}
 
@@ -288,7 +333,7 @@ export default function FarmActivityManagerScreen() {
 
   return (
     <View style={[localStyles.safeArea, { paddingTop: insets.top }]}>
-      {/* 🚨 Back Button and Header */}
+      {/* Back Button and Header */}
       <View style={localStyles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -297,7 +342,7 @@ export default function FarmActivityManagerScreen() {
           <Ionicons name="arrow-back" size={24} color={Styles.text.color} />
         </TouchableOpacity>
         <Text style={localStyles.titleText}>Farm Harvest & Activity</Text>
-        <View style={{ width: 34 }} />
+        <View style={{ width: 34 }} /> {/* Spacer for symmetry */}
       </View>
 
       <ScrollView style={localStyles.scrollViewContent}>
@@ -309,7 +354,7 @@ export default function FarmActivityManagerScreen() {
           ]}
           onPress={() => setIsFormVisible((prev) => !prev)}
         >
-          <Text style={[Styles.buttonText]}>
+          <Text style={Styles.buttonText}>
             {isFormVisible ? 'Hide Input Form' : '➕ Add New Activity'}
           </Text>
         </TouchableOpacity>
@@ -338,11 +383,9 @@ export default function FarmActivityManagerScreen() {
   );
 }
 
-// --- Local Stylesheet (Modified to use safeArea, header, and backButton) ---
-
+// --- Local Stylesheet (Unchanged) ---
 const localStyles = StyleSheet.create({
   safeArea: {
-    // 🚨 New base container for safe area support
     flex: 1,
     backgroundColor: Styles.container.backgroundColor,
   },
@@ -384,6 +427,7 @@ const localStyles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: Styles.button.backgroundColor,
   },
+  // --- Form Styles ---
   formContainer: {
     padding: 15,
     backgroundColor: Styles.formBox.backgroundColor,
@@ -418,7 +462,7 @@ const localStyles = StyleSheet.create({
     borderColor: Styles.inputFields.borderColor || '#ccc',
   },
   dateInputText: {
-    color: Styles.text.color,
+    color: '#000',
     fontSize: 16,
   },
   saveButton: {
@@ -434,7 +478,6 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     textDecorationLine: 'underline',
   },
-  // --- Record Display Styles ---
   recordCard: {
     backgroundColor: Styles.formBox.backgroundColor,
     padding: 15,
@@ -446,7 +489,7 @@ const localStyles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 2,
     borderLeftWidth: 5,
-    borderLeftColor: Styles.button.backgroundColor, // Highlight the record
+    borderLeftColor: Styles.button.backgroundColor,
   },
   recordHeader: {
     flexDirection: 'row',
@@ -490,8 +533,8 @@ const localStyles = StyleSheet.create({
     color: '#333',
   },
   button: {
-    alignSelf: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
   },
 });

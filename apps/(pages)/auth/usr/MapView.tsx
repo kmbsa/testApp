@@ -222,12 +222,14 @@ export default function AreaDetailsScreen() {
     }
   }, [areaId, userToken, signOut]);
 
+  // REFACORING: Updated the endpoint to reflect filtering by Area ID
   const fetchOngoingCropsCount = useCallback(async () => {
     setIsCropsLoading(true);
     setCropsFetchError(null);
     try {
+      // FIX 1: Changed the URL to query by area_id and updated endpoint path
       const response = await axios.get<{ count: number }>(
-        `${API_URL}/area/farm_harvest_crop_count/harvest_id=${areaId}`,
+        `${API_URL}/area/farm_harvest_ongoing_count/${areaId}`,
         {
           headers: {
             Authorization: `Bearer ${userToken}`,
@@ -244,7 +246,7 @@ export default function AreaDetailsScreen() {
     } finally {
       setIsCropsLoading(false);
     }
-  }, []);
+  }, [areaId, userToken]); // Added areaId and userToken to dependencies
 
   const fetchCurrentWeather = useCallback(async (location: Coordinate) => {
     setIsWeatherLoading(true);
@@ -299,7 +301,12 @@ export default function AreaDetailsScreen() {
   }, []);
 
   useEffect(() => {
+    // Only attempt to fetch weather if the modal is visible and we have coordinates
     if (modalVisible && areaData && areaData.coordinates.length > 0) {
+      // Clear previous weather data/error when modal opens to ensure fresh fetch
+      setWeatherData(null);
+      setWeatherError(null);
+
       const location = {
         latitude: areaData.coordinates[0].Latitude,
         longitude: areaData.coordinates[0].Longitude,
@@ -576,7 +583,9 @@ export default function AreaDetailsScreen() {
                   ]}
                   onPress={() => {
                     // Navigate to the FarmActivity screen
-                    navigation.navigate('FarmActivity');
+                    navigation.navigate('FarmActivity', {
+                      areaId: areaData.Area_ID,
+                    });
                     setModalVisible(false); // Close the modal before navigating
                   }}
                 >
@@ -608,6 +617,8 @@ export default function AreaDetailsScreen() {
                         {weatherData.temperature?.toFixed(0) ?? 'N/A'}°C
                       </Text>
                     </View>
+                    {/* FIX 2: Ensure this button is always visible when weatherData is successfully fetched. */}
+                    {/* It was already inside the 'weatherData' check, which is correct for showing it only if data is loaded. */}
                     <TouchableOpacity
                       style={localStyles.fullForecastButton}
                       onPress={() => {

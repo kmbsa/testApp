@@ -50,7 +50,7 @@ export type RootStackParamList = {
   Loading: undefined;
   AuthenticatedStack: undefined;
   MapPreview: { areaId: number } | undefined;
-  FarmActivity: undefined;
+  FarmActivity: { areaId: number } | undefined;
   WeatherPreview: { location: Coordinate } | undefined;
   AuthTabs: undefined;
   Test: undefined;
