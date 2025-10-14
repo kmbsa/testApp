@@ -521,6 +521,14 @@ export default function AreaDetailsScreen() {
                 {areaData.Province || 'N/A'}
               </Text>
               <Text style={localStyles.modalText}>
+                <Text style={{ fontWeight: 'bold' }}>Organization:</Text>{' '}
+                {areaData.Organization || 'N/A'}
+              </Text>
+              <Text style={localStyles.modalText}>
+                <Text style={{ fontWeight: 'bold' }}>Barangay:</Text>{' '}
+                {areaData.Barangay || 'N/A'}
+              </Text>
+              <Text style={localStyles.modalText}>
                 <Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text>{' '}
                 {areaData.coordinates.length}
               </Text>
