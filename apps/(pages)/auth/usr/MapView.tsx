@@ -55,7 +55,7 @@ export interface WeatherForecastResponse {
 
 import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Helper function to get an icon based on the tomorrow.io weather code
 const getWeatherIcon = (weatherCode: number | undefined): string => {
@@ -109,6 +109,8 @@ export default function AreaDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+  // 🗑️ REMOVED: imageViewerVisible, selectedImageIndex state
+
   const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
@@ -119,7 +121,12 @@ export default function AreaDetailsScreen() {
   const [isCropsLoading, setIsCropsLoading] = useState(false);
   const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
 
+  // 🗑️ REMOVED: showScrollViewContent state
+
   const mapRef = useRef<MapView | null>(null);
+  // 🗑️ REMOVED: imageScrollViewRef ref
+
+  const { width, height } = Dimensions.get('window');
 
   const areaId =
     typeof route.params?.areaId === 'number'
@@ -185,20 +192,10 @@ export default function AreaDetailsScreen() {
       const data = await response.data;
       setAreaData(data.area);
 
-      // Log image Filepaths to console for debugging
-      if (data.area && data.area.images) {
-        console.log('Image Filepaths received:');
-        data.area.images.forEach((img: BackendPhoto, index: number) => {
-          // This log has been updated to show the full URL that will be attempted
-          console.log(`Image ${index + 1} URL: ${API_URL}/${img.Filepath}`);
-        });
-      }
-
       if (
         data.area &&
         data.area.coordinates &&
-        data.area.coordinates.length > 0 &&
-        mapRef.current
+        data.area.coordinates.length > 0
       ) {
         const mapCoordinates = data.area.coordinates.map(
           (coord: BackendCoordinate) => ({
@@ -206,10 +203,20 @@ export default function AreaDetailsScreen() {
             longitude: coord.Longitude,
           }),
         );
-        mapRef.current.fitToCoordinates(mapCoordinates, {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        });
+
+        // 🚨 FIX: Call fetchCurrentWeather after successful data fetch
+        const centerCoord = {
+          latitude: data.area.coordinates[0].Latitude,
+          longitude: data.area.coordinates[0].Longitude,
+        };
+        fetchCurrentWeather(centerCoord);
+
+        if (mapRef.current) {
+          mapRef.current.fitToCoordinates(mapCoordinates, {
+            edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+            animated: true,
+          });
+        }
       }
     } catch (err: any) {
       console.error('Failed to fetch area details:', err);
@@ -222,12 +229,10 @@ export default function AreaDetailsScreen() {
     }
   }, [areaId, userToken, signOut]);
 
-  // REFACORING: Updated the endpoint to reflect filtering by Area ID
   const fetchOngoingCropsCount = useCallback(async () => {
     setIsCropsLoading(true);
     setCropsFetchError(null);
     try {
-      // FIX 1: Changed the URL to query by area_id and updated endpoint path
       const response = await axios.get<{ count: number }>(
         `${API_URL}/area/farm_harvest_ongoing_count/${areaId}`,
         {
@@ -246,7 +251,7 @@ export default function AreaDetailsScreen() {
     } finally {
       setIsCropsLoading(false);
     }
-  }, [areaId, userToken]); // Added areaId and userToken to dependencies
+  }, [areaId, userToken]);
 
   const fetchCurrentWeather = useCallback(async (location: Coordinate) => {
     setIsWeatherLoading(true);
@@ -257,7 +262,6 @@ export default function AreaDetailsScreen() {
         ? Weather_API_KEY
         : 'YOUR_API_KEY_HERE';
     const baseUrl = 'https://api.tomorrow.io/v4/timelines';
-    // NOTE: Added 'weatherCode' to the list of fields.
     const fields = [
       'temperature',
       'humidity',
@@ -300,20 +304,7 @@ export default function AreaDetailsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    // Only attempt to fetch weather if the modal is visible and we have coordinates
-    if (modalVisible && areaData && areaData.coordinates.length > 0) {
-      // Clear previous weather data/error when modal opens to ensure fresh fetch
-      setWeatherData(null);
-      setWeatherError(null);
-
-      const location = {
-        latitude: areaData.coordinates[0].Latitude,
-        longitude: areaData.coordinates[0].Longitude,
-      };
-      fetchCurrentWeather(location);
-    }
-  }, [modalVisible, areaData, fetchCurrentWeather]);
+  // 🗑️ REMOVED: All three useEffect blocks for image viewing/scrolling
 
   useFocusEffect(
     useCallback(() => {
@@ -321,6 +312,18 @@ export default function AreaDetailsScreen() {
       fetchOngoingCropsCount();
     }, [fetchAreaDetails, fetchOngoingCropsCount]),
   );
+
+  // 🚨 MODIFIED: openImageViewer now closes the current modal
+  const openImageViewer = (index: number) => {
+    if (areaData && areaData.images && API_URL) {
+      setModalVisible(false);
+      navigation.navigate('ImageViewerScreen', {
+        images: areaData.images,
+        initialIndex: index,
+        apiUrl: API_URL,
+      });
+    }
+  };
 
   const getInitialRegion = ():
     | {
@@ -488,11 +491,13 @@ export default function AreaDetailsScreen() {
           activeOpacity={1}
           onPressOut={() => setModalVisible(false)}
         >
+          {/* This View captures touch events to prevent the modal from closing when tapping content inside it. */}
           <View
             style={[
               localStyles.modalContent,
               { paddingBottom: insets.bottom + 20 },
             ]}
+            onStartShouldSetResponder={() => true}
           >
             <View style={localStyles.modalHeader}>
               <Text style={localStyles.modalTitle}>
@@ -534,11 +539,12 @@ export default function AreaDetailsScreen() {
               </Text>
               {areaData.images && areaData.images.length > 0 ? (
                 <View style={localStyles.imageGrid}>
-                  {areaData.images.map((image: BackendPhoto) => {
-                    console.log('Attempting to load image:', image.Filepath);
-                    return (
+                  {areaData.images.map((image: BackendPhoto, index: number) => (
+                    <TouchableOpacity
+                      key={image.Image_ID.toString()}
+                      onPress={() => openImageViewer(index)}
+                    >
                       <Image
-                        key={image.Image_ID.toString()}
                         source={{ uri: `${API_URL}/${image.Filepath}` }}
                         style={localStyles.imageThumbnail}
                         onError={(e) => {
@@ -550,8 +556,8 @@ export default function AreaDetailsScreen() {
                           );
                         }}
                       />
-                    );
-                  })}
+                    </TouchableOpacity>
+                  ))}
                 </View>
               ) : (
                 <Text style={localStyles.noImagesText}>
@@ -571,22 +577,16 @@ export default function AreaDetailsScreen() {
                 ) : (
                   <Text style={localStyles.modalText}>
                     <Text style={{ fontWeight: 'bold' }}>Ongoing Crops:</Text>{' '}
-                    {/* Display the count, defaulting to 0 */}
                     {ongoingCropsCount !== null ? ongoingCropsCount : 'N/A'}
                   </Text>
                 )}
-                {/* Button to navigate to FarmActivityScreen */}
                 <TouchableOpacity
-                  style={[
-                    Styles.button,
-                    localStyles.farmActivityButton, // New style for modal button
-                  ]}
+                  style={[Styles.button, localStyles.farmActivityButton]}
                   onPress={() => {
-                    // Navigate to the FarmActivity screen
                     navigation.navigate('FarmActivity', {
                       areaId: areaData.Area_ID,
                     });
-                    setModalVisible(false); // Close the modal before navigating
+                    setModalVisible(false);
                   }}
                 >
                   <Text style={Styles.buttonText}>
@@ -617,8 +617,6 @@ export default function AreaDetailsScreen() {
                         {weatherData.temperature?.toFixed(0) ?? 'N/A'}°C
                       </Text>
                     </View>
-                    {/* FIX 2: Ensure this button is always visible when weatherData is successfully fetched. */}
-                    {/* It was already inside the 'weatherData' check, which is correct for showing it only if data is loaded. */}
                     <TouchableOpacity
                       style={localStyles.fullForecastButton}
                       onPress={() => {
@@ -641,6 +639,8 @@ export default function AreaDetailsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* 🗑️ REMOVED: The second image viewer Modal component */}
     </View>
   );
 }
@@ -746,12 +746,12 @@ const localStyles = StyleSheet.create({
     marginTop: 10,
   },
   imageThumbnail: {
-    width: (width - 60) / 3, // Roughly 3 images per row, considering padding and margin
+    width: (width - 60) / 3,
     height: (width - 60) / 3,
     borderRadius: 8,
     margin: 5,
     resizeMode: 'cover',
-    backgroundColor: '#ccc', // Placeholder background
+    backgroundColor: '#ccc',
   },
   noImagesText: {
     color: '#888',
@@ -803,7 +803,7 @@ const localStyles = StyleSheet.create({
   },
   seeFarmsButton: {
     position: 'absolute',
-    bottom: 60, // Position it above the Complete Shape button (if it's at the bottom)
+    bottom: 60,
     left: 20,
     right: 20,
     width: undefined,
@@ -819,12 +819,12 @@ const localStyles = StyleSheet.create({
     paddingVertical: 15,
     borderTopWidth: 1,
     borderTopColor: '#ddd',
-    marginTop: 15, // A bit of space from the images
+    marginTop: 15,
     alignItems: 'center',
   },
   farmActivityButton: {
     width: '100%',
     marginTop: 15,
-    backgroundColor: '#F4D03F', // Use your accent color
+    backgroundColor: '#F4D03F',
   },
 });

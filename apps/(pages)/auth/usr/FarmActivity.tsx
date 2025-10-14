@@ -56,7 +56,7 @@ export default function FarmActivityManagerScreen() {
 
   const { userToken: token } = useAuth();
 
-  const farmId = (route.params as { farmId: number })?.farmId || 1;
+  const areaId = (route.params as { areaId: number })?.areaId || 1;
 
   const [harvestRecords, setHarvestRecords] = useState<HarvestRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function FarmActivityManagerScreen() {
 
     setIsLoading(true);
     try {
-      const url = `${API_URL}/area/farm_harvest/area_id=${farmId}`;
+      const url = `${API_URL}/area/farm_harvest/area_id=${areaId}`;
       const response = await axios.get<{ harvests: HarvestRecord[] }>(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -108,7 +108,7 @@ export default function FarmActivityManagerScreen() {
   // --- Initial Data Fetch ---
   useEffect(() => {
     fetchHarvestData();
-  }, [farmId, token]);
+  }, [areaId, token]);
 
   // Helper to format date into YYYY-MM-DD
   const formatDate = (date: Date): string => {
@@ -191,7 +191,7 @@ export default function FarmActivityManagerScreen() {
 
     try {
       const payload = {
-        area_id: farmId,
+        area_id: areaId,
         crop_type: newCrop,
         sow_date: formatDate(sowDate),
         harvest_date: formatDate(harvestDate),
@@ -216,7 +216,7 @@ export default function FarmActivityManagerScreen() {
       setSowDate(new Date());
       setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setIsFormVisible(false);
-    } catch (error: AxiosError) {
+    } catch (error: AxiosError | any) {
       const errorMessage =
         error.response?.data?.message ||
         'Failed to save activity. Please try again.';
@@ -227,7 +227,7 @@ export default function FarmActivityManagerScreen() {
     }
   };
 
-  // --- Rendering Functions (Unchanged) ---
+  // --- Rendering Functions (Fixed) ---
   const renderHarvestRecord = (record: HarvestRecord) => (
     <View key={record.Harvest_ID} style={localStyles.recordCard}>
       <View style={localStyles.recordHeader}>
@@ -245,12 +245,14 @@ export default function FarmActivityManagerScreen() {
           {record.status}
         </Text>
       </View>
+      {/* 🚨 FIX: Ensure all dynamic text is wrapped in a Text component */}
       <Text style={localStyles.recordDetail}>
-        <Text style={{ fontWeight: 'bold' }}>Sow Date:</Text> {record.Sow_Date}
+        <Text style={{ fontWeight: 'bold' }}>Sow Date:</Text>
+        <Text> {record.Sow_Date}</Text>
       </Text>
       <Text style={localStyles.recordDetail}>
-        <Text style={{ fontWeight: 'bold' }}>Expected Harvest:</Text>{' '}
-        {record.Expected_Harvest_Date}
+        <Text style={{ fontWeight: 'bold' }}>Expected Harvest:</Text>
+        <Text> {record.Expected_Harvest_Date}</Text>
       </Text>
     </View>
   );
@@ -258,7 +260,7 @@ export default function FarmActivityManagerScreen() {
   const renderActivityForm = () => (
     <View style={localStyles.formContainer}>
       <Text style={localStyles.formTitle}>
-        Add New Farm Activity for Farm ID: {farmId}
+        Add New Farm Activity for Farm ID: {areaId}
       </Text>
 
       {/* Crop Dropdown */}
@@ -286,7 +288,6 @@ export default function FarmActivityManagerScreen() {
           mode="date"
           display="default"
           onChange={onSowDateChange}
-          // The maximum date is dynamically enforced in onSowDateChange
         />
       )}
 
@@ -306,7 +307,7 @@ export default function FarmActivityManagerScreen() {
           mode="date"
           display="default"
           onChange={onHarvestDateChange}
-          minimumDate={sowDate} // 🚨 Validation: Minimum date must be Sow Date
+          minimumDate={sowDate}
         />
       )}
 
@@ -342,7 +343,7 @@ export default function FarmActivityManagerScreen() {
           <Ionicons name="arrow-back" size={24} color={Styles.text.color} />
         </TouchableOpacity>
         <Text style={localStyles.titleText}>Farm Harvest & Activity</Text>
-        <View style={{ width: 34 }} /> {/* Spacer for symmetry */}
+        <View style={{ width: 34 }} />
       </View>
 
       <ScrollView style={localStyles.scrollViewContent}>
@@ -362,7 +363,7 @@ export default function FarmActivityManagerScreen() {
         {isFormVisible && renderActivityForm()}
 
         <Text style={localStyles.sectionTitle}>
-          Harvests for Farm ID: {farmId} ({harvestRecords.length})
+          Harvests for Area ID: {areaId} ({harvestRecords.length})
         </Text>
 
         {isLoading ? (

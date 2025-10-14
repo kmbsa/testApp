@@ -50,6 +50,9 @@ export type RootStackParamList = {
   Loading: undefined;
   AuthenticatedStack: undefined;
   MapPreview: { areaId: number } | undefined;
+  ImageViewerScreen:
+    | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
+    | undefined;
   FarmActivity: { areaId: number } | undefined;
   WeatherPreview: { location: Coordinate } | undefined;
   AuthTabs: undefined;
@@ -92,6 +95,10 @@ export type DraftsPageProps = NativeStackScreenProps<
 export type MapPreviewProps = NativeStackScreenProps<
   RootStackParamList,
   'MapPreview'
+>;
+export type ImageViewerProps = NativeStackScreenProps<
+  RootStackParamList,
+  'ImageViewerScreen'
 >;
 export type FarmActivityProps = NativeStackScreenProps<
   RootStackParamList,
