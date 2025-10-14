@@ -156,7 +156,7 @@ export default function MapEntriesScreen() {
       setError(null);
 
       try {
-        let url = `${API_URL}/areas?page=${page}&per_page=${ITEMS_PER_PAGE}`;
+        let url = `${API_URL}/areas_approved?page=${page}&per_page=${ITEMS_PER_PAGE}`;
         if (query) {
           url += `&search=${encodeURIComponent(query)}`;
         }
@@ -260,7 +260,7 @@ export default function MapEntriesScreen() {
           <View style={{ width: 34 }} />
         </View>
         <TextInput
-          style={[Styles.inputFields, { width: '100%' }]} // Using global inputFields style
+          style={[Styles.inputFields, { width: '100%' }]}
           placeholder="Search for an area..."
           placeholderTextColor="#888"
           value={searchQuery}
