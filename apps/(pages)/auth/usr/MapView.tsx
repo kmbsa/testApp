@@ -529,6 +529,10 @@ export default function AreaDetailsScreen() {
                 {areaData.Barangay || 'N/A'}
               </Text>
               <Text style={localStyles.modalText}>
+                <Text style={{ fontWeight: 'bold' }}>Soil Type:</Text>{' '}
+                {areaData.Soil_Type || 'N/A'}
+              </Text>
+              <Text style={localStyles.modalText}>
                 <Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text>{' '}
                 {areaData.coordinates.length}
               </Text>

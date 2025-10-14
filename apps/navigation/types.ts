@@ -23,6 +23,12 @@ export type AreaEntry = {
   Region?: string;
   Province?: string;
   Organization: string;
+  Barangay: string;
+  Slope: string;
+  Masl: string;
+  Soil_Type: string;
+  Hectares: string;
+  Suitability: string;
   created_at: string;
   coordinates: BackendCoordinate[];
   images: BackendPhoto[];
