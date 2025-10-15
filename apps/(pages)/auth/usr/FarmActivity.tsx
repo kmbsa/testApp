@@ -468,7 +468,7 @@ const localStyles = StyleSheet.create({
   },
   saveButton: {
     marginTop: 20,
-    backgroundColor: '#38b000', // Success color
+    backgroundColor: '#F4D03F', // Success color
   },
   cancelButton: {
     marginTop: 10,

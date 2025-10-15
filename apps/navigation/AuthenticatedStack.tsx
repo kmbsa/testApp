@@ -11,6 +11,7 @@ import Test from '../(pages)/auth/tst/Test';
 import DraftsPage from '../(pages)/auth/usr/DraftsPage';
 import FarmActivityScreen from '../(pages)/auth/usr/FarmActivity';
 import ImageViewerScreen from '../(pages)/auth/usr/ImageViewer';
+import AccountSettingsScreen from '../(pages)/auth/usr/AccountSettings';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -68,6 +69,11 @@ function AuthenticatedUserStack() {
           name="ImageViewerScreen"
           component={ImageViewerScreen}
           options={{ title: 'Image Viewer' }}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="AccountSettings"
+          component={AccountSettingsScreen}
+          options={{ title: 'Account Settings' }}
         />
         <AuthenticatedUserFlowStack.Screen
           name="Test"

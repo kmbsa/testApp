@@ -61,6 +61,7 @@ export type RootStackParamList = {
     | undefined;
   FarmActivity: { areaId: number } | undefined;
   WeatherPreview: { location: Coordinate } | undefined;
+  AccountSettings: undefined;
   AuthTabs: undefined;
   Test: undefined;
 };
@@ -113,6 +114,10 @@ export type FarmActivityProps = NativeStackScreenProps<
 export type WeatherPreviewProps = NativeStackScreenProps<
   RootStackParamList,
   'WeatherPreview'
+>;
+export type AccountSettingsProps = NativeStackScreenProps<
+  RootStackParamList,
+  'AccountSettings'
 >;
 export type TestScreenProps = NativeStackNavigationProp<
   RootStackParamList,

@@ -9,13 +9,16 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '@env';
+
+// --- INTERFACES ---
+
 interface UserData {
   user_id: number;
   email: string;
   first_name: string;
   last_name: string;
-  sex?: string;
-  contact_no?: string;
+  sex?: string | null;
+  contact_no?: string | null;
   user_type?: string;
 }
 
@@ -26,6 +29,18 @@ interface RegistrationPayload {
   last_name: string;
   sex: string | null;
   contact_no: string;
+}
+
+export interface UserDataUpdatePayload {
+  first_name?: string;
+  last_name?: string;
+  sex?: string | null;
+  contact_no?: string | null;
+}
+
+export interface UserCredentialsUpdatePayload {
+  email?: string;
+  password?: string;
 }
 
 interface AuthContextType {
@@ -39,6 +54,8 @@ interface AuthContextType {
   signUp: (userDataPayload: RegistrationPayload) => Promise<void>;
   signOut: () => Promise<void>;
   fetchUserData: () => Promise<void>;
+  updateUserData: (data: UserDataUpdatePayload) => Promise<void>;
+  updateUserCredentials: (data: UserCredentialsUpdatePayload) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -61,185 +78,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isSigningUp, setIsSigningUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkToken = async () => {
+  // --- Helper function (Internal - only fetches data) ---
+  const internalFetchUserData = useCallback(
+    async (token: string) => {
       try {
-        console.log(
-          'AuthContext: Checking for access_token in AsyncStorage...',
-        );
-        const token = await AsyncStorage.getItem('access_token');
-        if (token) {
-          console.log('AuthContext: access_token found.');
-          setUserToken(token);
+        const response = await axios.get(`${API_URL}/auth/user`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        console.log('API Response for /user endpoint:', response.data);
+
+        const userDetails = response.data.user || response.data;
+
+        if (userDetails && userDetails.first_name && userDetails.last_name) {
+          setUserData(userDetails);
+          setError(null);
+          console.log(
+            'AuthContext: User data fetched successfully and state updated.',
+          );
         } else {
-          console.log('AuthContext: No access_token found.');
+          console.error(
+            'AuthContext: User data in API response is incomplete. Missing first_name or last_name.',
+          );
+          setError(
+            'Failed to fetch complete user data. Please check API response structure.',
+          );
+          setUserData(null);
         }
-      } catch (e) {
-        console.error(
-          'AuthContext: Failed to load access_token from storage:',
-          e,
+      } catch (e: any) {
+        console.error('Error fetching user data:', e.response?.data || e);
+        setError(
+          e.response?.data?.message ||
+            'Failed to fetch user data. Please re-login.',
         );
-      } finally {
-        setIsLoading(false);
-        console.log('AuthContext: Initial loading complete.');
-      }
-    };
-    checkToken();
-  }, []);
-
-  // --- Internal function to fetch user data ---
-  const internalFetchUserData = useCallback(async (token: string) => {
-    setError(null); // Clear previous errors
-    console.log('AuthContext: Fetching user data...');
-    // console.log('AuthContext: Token being sent to backend:', token);
-    try {
-      const response = await axios.get<UserData>(`${API_URL}/auth/user`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log('AuthContext: /auth/user response:', response.data);
-      setUserData(response.data);
-      console.log(
-        'AuthContext: User data fetched successfully:',
-        response.data,
-      );
-    } catch (e: any) {
-      console.error('AuthContext: Error fetching user data:', e);
-      setError('Failed to fetch user data.');
-
-      // If token is invalid or expired, the API might return 401/403
-      if (axios.isAxiosError(e) && e.response?.status === 401) {
-        console.log(
-          'AuthContext: User data fetch returned 401, token likely expired. Signing out.',
-        );
-        signOut();
-      }
-      throw e;
-    }
-  }, []);
-
-  useEffect(() => {
-    console.log(
-      'AuthContext: userToken state changed:',
-      userToken ? 'present' : 'null',
-    );
-    const handleUserTokenChange = async () => {
-      if (userToken) {
-        try {
-          await internalFetchUserData(userToken);
-        } catch (e) {
-          console.log(`Error: ${e}`);
-        }
-      } else {
-        console.log('AuthContext: userToken is null, clearing user data.');
         setUserData(null);
       }
-    };
-    handleUserTokenChange();
-  }, [userToken, internalFetchUserData]);
+    },
+    [setUserData, setError],
+  );
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    setIsSigningIn(true);
-    setError(null);
-    console.log('AuthContext: Attempting to sign in...', { email });
-    try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        user: email,
-        password: password,
-      });
-      console.log('AuthContext: /auth/login response:', response.data);
-
-      if (response.data.access_token) {
-        const accessToken = response.data.access_token;
-        console.log('AuthContext: Login successful, saving access_token...');
-        await AsyncStorage.setItem('access_token', accessToken);
-        setUserToken(accessToken);
-        console.log('AuthContext: access_token saved and state updated.');
-      } else {
-        setError('Login failed: No access_token received from API.');
-        console.error('AuthContext: Login failed: No access_token received.');
-        throw new Error('Login failed: No access_token received.');
-      }
-    } catch (e: any) {
-      console.error('AuthContext: Login API error:', e);
-      if (axios.isAxiosError(e) && e.response) {
-        const backendError =
-          e.response.data?.error ||
-          `Server error (Status: ${e.response.status})`;
-        setError(backendError);
-        console.error(
-          'AuthContext: Login API error response data:',
-          e.response.data,
+  // --- Auth Functions (Existing) ---
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setIsSigningIn(true);
+      try {
+        const response = await axios.post(`${API_URL}/auth/login`, {
+          email,
+          password,
+        });
+        const token = response.data.access_token;
+        await AsyncStorage.setItem('access_token', token);
+        setUserToken(token);
+        // Immediately fetch user data after getting the token
+        await internalFetchUserData(token);
+        setError(null);
+      } catch (e: any) {
+        console.error('AuthContext: Sign in failed:', e.response?.data || e);
+        setError(
+          e.response?.data?.message ||
+            'Sign in failed. Check your credentials.',
         );
-      } else {
-        setError('Login failed: Network error or unexpected issue.');
+      } finally {
+        setIsSigningIn(false);
       }
-      throw e;
-    } finally {
-      setIsSigningIn(false);
-      console.log('AuthContext: Sign in process ended.');
-    }
-  }, []);
+    },
+    [internalFetchUserData],
+  );
 
   const signUp = useCallback(async (userDataPayload: RegistrationPayload) => {
     setIsSigningUp(true);
-    setError(null);
-    console.log('AuthContext: Attempting to sign up...', {
-      email: userDataPayload.email,
-    });
     try {
-      const response = await axios.post(`${API_URL}/user`, userDataPayload);
-
-      if (response.status === 201) {
-        console.log('AuthContext: Registration successful:', response.data);
-      } else {
-        setError(
-          response.data?.error ||
-            `Registration failed with status ${response.status}`,
-        );
-        console.error(
-          'AuthContext: Registration failed with status:',
-          response.status,
-          response.data,
-        );
-        throw new Error('Registration failed');
-      }
+      await axios.post(`${API_URL}/auth/register`, userDataPayload);
+      setError(null);
+      console.log('AuthContext: User registered successfully.');
     } catch (e: any) {
-      console.error('AuthContext: Registration API error:', e);
-      if (axios.isAxiosError(e) && e.response) {
-        const backendError =
-          e.response.data?.error ||
-          `Server error (Status: ${e.response.status})`;
-        setError(backendError);
-        console.error(
-          'AuthContext: Registration API error response data:',
-          e.response.data,
-        );
-      } else {
-        setError('Registration failed: Network error or unexpected issue.');
-      }
-      throw e;
+      console.error('AuthContext: Sign up failed:', e.response?.data || e);
+      setError(
+        e.response?.data?.message || 'Sign up failed. Please try again.',
+      );
     } finally {
       setIsSigningUp(false);
-      console.log('AuthContext: Sign up process ended.');
     }
   }, []);
 
   const signOut = useCallback(async () => {
-    console.log('AuthContext: Signing out...');
-    setUserToken(null);
     setUserData(null);
-    setError(null);
+    setUserToken(null);
     try {
-      // Optional: Call backend logout endpoint (backend might invalidate the token)
-      // For JWT, you may want to call /auth/logout with the token
-      const token = await AsyncStorage.getItem('access_token');
-      if (token) {
+      if (userToken) {
         try {
           await axios.post(
             `${API_URL}/auth/logout`,
             {},
             {
-              headers: { Authorization: `Bearer ${token}` },
+              headers: {
+                Authorization: `Bearer ${userToken}`,
+              },
             },
           );
         } catch (logoutErr) {
@@ -251,7 +187,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       console.log('AuthContext: Removing access_token from storage.');
       await AsyncStorage.removeItem('access_token');
-      console.log('AuthContext: access_token removed from AsyncStorage.');
     } catch (e) {
       console.error(
         'AuthContext: Failed to remove access_token from storage or call backend logout:',
@@ -259,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       );
     }
     console.log('AuthContext: Sign out process complete.');
-  }, []);
+  }, [userToken]);
 
   const fetchUserData = useCallback(async () => {
     if (userToken) {
@@ -268,9 +203,129 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       console.warn('AuthContext: fetchUserData called but no token found.');
       setError('Cannot fetch user data: No authentication token found.');
-      // signOut(); // Or sign out if this indicates an invalid state
     }
   }, [userToken, internalFetchUserData]);
+
+  // --- Update User Personal Data (Route: /user) ---
+  const updateUserData = useCallback(
+    async (data: UserDataUpdatePayload) => {
+      if (!userToken) {
+        throw new Error('Authentication token not available.');
+      }
+
+      const payload: { [key: string]: any } = {};
+      (Object.keys(data) as Array<keyof UserDataUpdatePayload>).forEach(
+        (key) => {
+          const value = data[key];
+          if (value !== undefined) {
+            payload[key] = value;
+          }
+        },
+      );
+
+      if (Object.keys(payload).length === 0) {
+        console.warn(
+          'updateUserData called with empty payload, skipping API call.',
+        );
+        return;
+      }
+
+      console.log(
+        'AuthContext: Calling API to update user data (Route: /user)...',
+        payload,
+      );
+      try {
+        const response = await axios.put(`${API_URL}/user`, payload, {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.status === 200) {
+          await internalFetchUserData(userToken);
+          console.log('User data updated successfully and state refreshed.');
+        } else {
+          throw new Error(
+            response.data.message || 'Failed to update user data.',
+          );
+        }
+      } catch (e: any) {
+        console.error('Error updating user data:', e.response?.data || e);
+        throw new Error(
+          e.response?.data?.message ||
+            'Network error or failed to update data.',
+        );
+      }
+    },
+    [userToken, internalFetchUserData],
+  );
+
+  // --- Update User Credentials (Route: /user/credentials) ---
+  const updateUserCredentials = useCallback(
+    async (data: UserCredentialsUpdatePayload) => {
+      if (!userToken) {
+        throw new Error('Authentication token not available.');
+      }
+
+      if (!data.email && !data.password) {
+        throw new Error('Must provide a new email or a new password.');
+      }
+
+      console.log(
+        'AuthContext: Calling API to update user credentials (Route: /user/credentials)...',
+      );
+      try {
+        const response = await axios.put(`${API_URL}/user/credentials`, data, {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.status === 200) {
+          if (data.email) {
+            // Re-fetch user data if email changed to update the local state
+            await internalFetchUserData(userToken);
+          }
+          console.log('User credentials updated successfully.');
+        } else {
+          throw new Error(
+            response.data.message || 'Failed to update credentials.',
+          );
+        }
+      } catch (e: any) {
+        console.error(
+          'Error updating user credentials:',
+          e.response?.data || e,
+        );
+        throw new Error(
+          e.response?.data?.message ||
+            'Network error or failed to update credentials.',
+        );
+      }
+    },
+    [userToken, internalFetchUserData],
+  );
+
+  // --- Existing useEffect to load token ---
+  useEffect(() => {
+    const loadToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('access_token');
+        if (token) {
+          setUserToken(token);
+          await internalFetchUserData(token);
+        }
+      } catch (e) {
+        console.error('Failed to load token from storage:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadToken();
+  }, [internalFetchUserData]);
 
   const contextValue = useMemo(
     () => ({
@@ -284,6 +339,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       signUp,
       signOut,
       fetchUserData,
+      updateUserData,
+      updateUserCredentials,
     }),
     [
       userToken,
@@ -296,6 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       signUp,
       signOut,
       fetchUserData,
+      updateUserData,
+      updateUserCredentials,
     ],
   );
 

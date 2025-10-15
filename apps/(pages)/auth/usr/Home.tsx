@@ -63,9 +63,9 @@ function Home() {
 
       <TouchableOpacity
         style={Styles.button}
-        onPress={() => navigation.navigate('Test')}
+        onPress={() => navigation.navigate('AccountSettings')}
       >
-        <Text style={Styles.buttonText}>Go to Page 3</Text>
+        <Text style={Styles.buttonText}>Go to Account Settings</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={Styles.button} onPress={handleLogout}>

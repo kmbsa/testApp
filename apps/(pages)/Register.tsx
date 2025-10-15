@@ -11,19 +11,13 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import { Button } from '@react-navigation/elements';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
 import { API_URL } from '@env';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Styles from '../styles/styles';
-import type {
-  RootStackNavigationProp,
-  RootStackParamList,
-  RegistrationScreenProps,
-} from '../navigation/types';
+import type { RootStackNavigationProp } from '../navigation/types';
 
 const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -255,6 +249,7 @@ function Register() {
                 onChangeText={setContactNumber}
                 value={contactNumber}
                 keyboardType="phone-pad"
+                maxLength={16}
               />
 
               <Text style={Styles.text}>Sex:</Text>
