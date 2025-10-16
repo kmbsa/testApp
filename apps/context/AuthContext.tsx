@@ -125,8 +125,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsSigningIn(true);
       try {
         const response = await axios.post(`${API_URL}/auth/login`, {
-          email,
-          password,
+          email: email,
+          password: password,
         });
         const token = response.data.access_token;
         await AsyncStorage.setItem('access_token', token);
