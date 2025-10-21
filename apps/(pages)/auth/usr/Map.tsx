@@ -552,14 +552,14 @@ export default function Map() {
 
     Alert.alert(
       'Shape Completed',
-      'Your polygon has been drawn. You can now fill out the form for this area.',
+      'Your polygon has been drawn. You should now fill out the form for this area.',
       [
         {
           text: 'OK',
           onPress: () => {
             setModalVisible(true);
             panY.setValue(0);
-            setCurrentPage(1); // Ensure it opens on page 1
+            setCurrentPage(1);
           },
         },
       ],
@@ -615,8 +615,8 @@ export default function Map() {
 
   const handleClearMap = () => {
     Alert.alert(
-      'Clear Map',
-      'Are you sure you want to clear all plotted points?',
+      'Clear All',
+      'Are you sure you want to clear all progress including plotted markers and form inputs?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -653,10 +653,20 @@ export default function Map() {
       return;
     }
 
-    if (!areaSoilType.trim() || !areaSoilSuitability.trim()) {
+    if (
+      !areaName.trim() ||
+      !areaRegion?.trim() ||
+      !areaProvince?.trim() ||
+      !areaBarangay.trim() ||
+      !areaOrganization.trim() ||
+      !areaSlope.trim() ||
+      !areaMasl.trim() ||
+      !areaSoilType.trim() ||
+      !areaSoilSuitability.trim()
+    ) {
       Alert.alert(
         'Missing Information',
-        'Please fill in all required form fields (Area Name, Region, Province, Organization, Slope, and Mean Average Sea Level).',
+        'Please fill in all fields in the forms.',
       );
       return;
     }
@@ -807,16 +817,7 @@ export default function Map() {
           quality: 0.8,
           result: 'file',
         });
-        {
-          /*
-          Steps to do for saving everything in offline
-          1. Take a snapshot of the map (check).
-          2. Take the uri of that map snapshot and save it locally in the device.
-          3. Take all the coordinates data inside the array and save it locally.
-          4. Take all the inputs in the forms and save it locally.
-          5. Find a way to load it in the drafts.
-           */
-        }
+
         setSnapshot(`${uri}`);
         console.log(`Snapshot saved at: ${snapShot}`);
         console.log(`${points}`);
@@ -1169,8 +1170,6 @@ export default function Map() {
     </View>
   );
 
-  // Save Draft Handler
-  // Always use latest state for draft
   const handleSaveDraft = () => {
     const draftData = getDraftData(
       [...points],

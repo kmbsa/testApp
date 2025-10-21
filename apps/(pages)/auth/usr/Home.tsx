@@ -51,21 +51,21 @@ function Home() {
         style={Styles.button}
         onPress={() => navigation.navigate('DraftsPage')}
       >
-        <Text style={Styles.buttonText}>Go to Drafts</Text>
+        <Text style={Styles.buttonText}>Drafts</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={Styles.button}
         onPress={() => navigation.navigate('MapEntries')}
       >
-        <Text style={Styles.buttonText}>Go to Map Entries</Text>
+        <Text style={Styles.buttonText}>Map Entries</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={Styles.button}
         onPress={() => navigation.navigate('AccountSettings')}
       >
-        <Text style={Styles.buttonText}>Go to Account Settings</Text>
+        <Text style={Styles.buttonText}>Account Settings</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={Styles.button} onPress={handleLogout}>

@@ -173,7 +173,7 @@ export default function FarmActivityManagerScreen() {
 
     // 🚨 Determine Status based on current date (business rule)
     const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day for comparison
+    currentDate.setHours(0, 0, 0, 0);
     const normalizedSowDate = new Date(sowDate);
     normalizedSowDate.setHours(0, 0, 0, 0);
 

@@ -88,8 +88,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           },
         });
 
-        console.log('API Response for /user endpoint:', response.data);
-
         const userDetails = response.data.user || response.data;
 
         if (userDetails && userDetails.first_name && userDetails.last_name) {

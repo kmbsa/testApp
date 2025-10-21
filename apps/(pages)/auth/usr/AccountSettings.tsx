@@ -181,7 +181,7 @@ const AccountSettingsScreen: React.FC = () => {
   const handleUpdateCredentials = async () => {
     setCredentialsLoading(true);
     try {
-      const payload: { email?: string; password?: string } = {};
+      const payload = { email: email, new_password: newPassword };
       const emailChanged = email !== userData?.email;
       const passwordEntered = newPassword.length > 0;
 
@@ -189,7 +189,7 @@ const AccountSettingsScreen: React.FC = () => {
         payload.email = email;
       }
       if (passwordEntered) {
-        payload.password = newPassword;
+        payload.new_password = newPassword;
       }
 
       await updateUserCredentials(payload); // Call the function from AuthContext
@@ -307,9 +307,7 @@ const AccountSettingsScreen: React.FC = () => {
       />
 
       {/* New Password */}
-      <Text style={Styles.text}>
-        New Password (Leave blank to keep current)
-      </Text>
+      <Text style={Styles.text}>New Password</Text>
       <TextInput
         style={[Styles.inputFields, localStyles.fullWidthInput]}
         value={newPassword}
@@ -420,6 +418,7 @@ const localStyles = StyleSheet.create({
     backgroundColor: Styles.formBox?.backgroundColor || '#fff',
     borderRadius: 10,
     padding: 15,
+    width: 350,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
