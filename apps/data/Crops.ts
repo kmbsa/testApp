@@ -1,4 +1,21 @@
-export const philippineCrops = {
+export const philippineCrops = [
+  'Rice',
+  'Corn',
+  'Cacao',
+  'Coffee',
+  'Sugarcane',
+  'Tomato',
+  'Banana',
+  'Soybean',
+  'Cassava',
+  'Pineapple',
+  'Mango',
+  'Rubber',
+  'Sweet Potato',
+  'Abaca',
+  'Tobacco',
+];
+export const otherCrops = {
   vegetables: [
     'Eggplant',
     'Tomato',

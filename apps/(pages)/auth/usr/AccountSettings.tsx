@@ -57,14 +57,19 @@ const AccountSettingsScreen: React.FC = () => {
       Alert.alert('Error', 'User data not loaded. Please try again.');
       return false;
     }
-    if (!firstName || !lastName || !contactNumber || !email) {
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !contactNumber.trim() ||
+      !sex.trim()
+    ) {
       Alert.alert(
         'Missing Fields',
         'Please ensure all personal fields are filled.',
       );
       return false;
     }
-    // Check if anything actually changed
+
     if (
       firstName === userData.first_name &&
       lastName === userData.last_name &&
@@ -107,7 +112,7 @@ const AccountSettingsScreen: React.FC = () => {
         contact_no: contactNumber,
       };
 
-      await updateUserData(payload); // Call the function from AuthContext
+      await updateUserData(payload);
 
       Alert.alert('Success', 'Personal data updated successfully!');
     } catch (error: any) {

@@ -24,14 +24,7 @@ import { philippineCrops } from '../../../data/Crops';
 
 // --- Utility: Flatten Crops data for Dropdown ---
 const getAllCropOptions = (): DropdownItem[] => {
-  const allCropNames = [
-    ...philippineCrops.vegetables,
-    ...philippineCrops.fruits,
-    ...philippineCrops.legumes,
-    ...philippineCrops.rootAndTubers,
-    ...philippineCrops.herbsAndSpices,
-    ...philippineCrops.otherCrops,
-  ];
+  const allCropNames = [...philippineCrops];
 
   return allCropNames.map((crop) => ({
     label: crop,
