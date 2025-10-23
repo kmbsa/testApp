@@ -257,9 +257,8 @@ export default function Map() {
     }
   }, [draftParam]);
 
-  // Track unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  // Track if loaded from draft
+
   const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null);
   const navigation = useNavigation<RootStackNavigationProp>();
 
@@ -598,6 +597,7 @@ export default function Map() {
       region: areaRegion,
       province: areaProvince,
       organization: areaOrganization,
+      barangay: areaBarangay,
       slope: areaSlope,
       masl: areaMasl,
       soil_type: areaSoilType,
@@ -712,6 +712,7 @@ export default function Map() {
         console.log('Server response:', response.data);
         Alert.alert('Success!', 'Area details submitted successfully.');
         clearForms();
+        setHasUnsavedChanges(false);
       } else {
         Alert.alert(
           'Unexpected Response',

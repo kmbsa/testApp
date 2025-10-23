@@ -132,8 +132,14 @@ const AccountSettingsScreen: React.FC = () => {
       return false;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const emailChanged = email !== userData.email;
     const passwordEntered = newPassword.length > 0;
+
+    if (emailChanged && !emailRegex.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return false;
+    }
 
     if (!emailChanged && !passwordEntered) {
       Alert.alert(
