@@ -105,6 +105,7 @@ export default function AreaDetailsScreen() {
   const { userToken, signOut } = useAuth();
 
   const [areaData, setAreaData] = useState<AreaEntry | null>(null);
+  const [areaFarmData, setAreaFarmData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -191,6 +192,7 @@ export default function AreaDetailsScreen() {
 
       const data = await response.data;
       setAreaData(data.area);
+      setAreaFarmData(data.area.farm[0]);
 
       if (
         data.area &&
@@ -530,7 +532,7 @@ export default function AreaDetailsScreen() {
               </Text>
               <Text style={localStyles.modalText}>
                 <Text style={{ fontWeight: 'bold' }}>Soil Type:</Text>{' '}
-                {areaData.Soil_Type || 'N/A'}
+                {areaFarmData.Soil_Type || 'N/A'}
               </Text>
               <Text style={localStyles.modalText}>
                 <Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text>{' '}
