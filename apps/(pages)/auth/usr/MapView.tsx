@@ -12,18 +12,17 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   useNavigation,
   useRoute,
   useFocusEffect,
 } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import axios from 'axios';
 
 import { API_URL, Weather_API_KEY } from '@env';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 import {
@@ -110,8 +109,6 @@ export default function AreaDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // 🗑️ REMOVED: imageViewerVisible, selectedImageIndex state
-
   const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
@@ -122,10 +119,7 @@ export default function AreaDetailsScreen() {
   const [isCropsLoading, setIsCropsLoading] = useState(false);
   const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
 
-  // 🗑️ REMOVED: showScrollViewContent state
-
   const mapRef = useRef<MapView | null>(null);
-  // 🗑️ REMOVED: imageScrollViewRef ref
 
   const { width, height } = Dimensions.get('window');
 
@@ -199,12 +193,19 @@ export default function AreaDetailsScreen() {
         data.area.coordinates &&
         data.area.coordinates.length > 0
       ) {
-        const mapCoordinates = data.area.coordinates.map(
-          (coord: BackendCoordinate) => ({
+        const mapCoordinates = data.area.coordinates
+          .map((coord: BackendCoordinate) => ({
             latitude: coord.Latitude,
             longitude: coord.Longitude,
-          }),
-        );
+          }))
+          // 🚨 Add this defensive filter
+          .filter(
+            (coord: { latitude: number; longitude: number }) =>
+              typeof coord.latitude === 'number' &&
+              typeof coord.longitude === 'number' &&
+              !isNaN(coord.latitude) &&
+              !isNaN(coord.longitude),
+          );
 
         // 🚨 FIX: Call fetchCurrentWeather after successful data fetch
         const centerCoord = {
@@ -305,8 +306,6 @@ export default function AreaDetailsScreen() {
       setIsWeatherLoading(false);
     }
   }, []);
-
-  // 🗑️ REMOVED: All three useEffect blocks for image viewing/scrolling
 
   useFocusEffect(
     useCallback(() => {
@@ -433,6 +432,7 @@ export default function AreaDetailsScreen() {
       <View style={localStyles.container}>
         <MapView
           ref={mapRef}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           style={localStyles.map}
           initialRegion={getInitialRegion()}
           mapType="hybrid"
@@ -527,22 +527,20 @@ export default function AreaDetailsScreen() {
                 {areaData.Organization || 'N/A'}
               </Text>
               <Text style={localStyles.modalText}>
-                <Text style={{ fontWeight: 'bold' }}>Barangay:</Text>{' '}
-                {areaData.Barangay || 'N/A'}
-              </Text>
-              <Text style={localStyles.modalText}>
-                <Text style={{ fontWeight: 'bold' }}>Soil Type:</Text>{' '}
-                {areaFarmData.Soil_Type || 'N/A'}
-              </Text>
-              <Text style={localStyles.modalText}>
-                <Text style={{ fontWeight: 'bold' }}>Coordinates Count:</Text>{' '}
-                {areaData.coordinates.length}
-              </Text>
-              <Text style={localStyles.modalText}>
                 <Text style={{ fontWeight: 'bold' }}>Submission Date:</Text>{' '}
                 {new Date(areaData.created_at).toLocaleDateString()}
               </Text>
-
+              <TouchableOpacity
+                style={[Styles.button, localStyles.farmActivityButton]}
+                onPress={() => {
+                  navigation.navigate('MapDetailsUpdate', {
+                    areaId: areaData.Area_ID,
+                  });
+                  setModalVisible(false);
+                }}
+              >
+                <Text style={Styles.buttonText}>More Details</Text>
+              </TouchableOpacity>
               <Text
                 style={[
                   localStyles.modalText,

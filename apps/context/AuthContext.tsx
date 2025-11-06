@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           console.log(
             'AuthContext: User data fetched successfully and state updated.',
           );
+          console.log(`User Token:\t${token}`);
         } else {
           console.error(
             'AuthContext: User data in API response is incomplete. Missing first_name or last_name.',
@@ -129,7 +130,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const token = response.data.access_token;
         await AsyncStorage.setItem('access_token', token);
         setUserToken(token);
-        // Immediately fetch user data after getting the token
         await internalFetchUserData(token);
         setError(null);
       } catch (e: any) {

@@ -201,9 +201,9 @@ import { useAuth } from '../../../context/AuthContext';
 
 import Styles from '../../../styles/styles';
 
-import { SoilTypeData } from '../../../data/SoilType';
-import { SoilSuitabilityData } from '../../../data/SoilSuitability';
-import { provincesByRegion } from '../../../data/Regions';
+import { SoilTypeData } from '../../../../assets/data/SoilType';
+import { SoilSuitabilityData } from '../../../../assets/data/SoilSuitability';
+import { provincesByRegion } from '../../../../assets/data/Regions';
 
 export default function Map() {
   // Get draft from navigation params
@@ -231,7 +231,6 @@ export default function Map() {
         setAreaName(draftParam.form.areaName || '');
         setAreaRegion(draftParam.form.areaRegion || null);
         setAreaProvince(draftParam.form.areaProvince || null);
-        setAreaBarangay(draftParam.form.areaBarangay || '');
         setAreaOrganization(draftParam.form.areaOrganization || '');
         setAreaSlope(draftParam.form.areaSlope || '');
         setAreaMasl(draftParam.form.areaMasl || '');
@@ -290,7 +289,6 @@ export default function Map() {
   const [areaName, setAreaName] = useState('');
   const [areaRegion, setAreaRegion] = useState<string | null>(null);
   const [areaProvince, setAreaProvince] = useState<string | null>(null);
-  const [areaBarangay, setAreaBarangay] = useState('');
   const [areaOrganization, setAreaOrganization] = useState('');
   const [areaSlope, setAreaSlope] = useState('');
   const [areaMasl, setAreaMasl] = useState('');
@@ -582,7 +580,6 @@ export default function Map() {
     setAreaMasl('');
     setAreaSoilType('');
     setAreaSoilSuitability('');
-    setAreaBarangay('');
     setCurrentPage(1);
     setUserLocation(null);
     setAreaInHectares(0);
@@ -597,7 +594,6 @@ export default function Map() {
       region: areaRegion,
       province: areaProvince,
       organization: areaOrganization,
-      barangay: areaBarangay,
       slope: areaSlope,
       masl: areaMasl,
       soil_type: areaSoilType,
@@ -657,7 +653,6 @@ export default function Map() {
       !areaName.trim() ||
       !areaRegion?.trim() ||
       !areaProvince?.trim() ||
-      !areaBarangay.trim() ||
       !areaOrganization.trim() ||
       !areaSlope.trim() ||
       !areaMasl.trim() ||
@@ -891,16 +886,6 @@ export default function Map() {
         value={areaProvince}
         onValueChange={setAreaProvince}
         placeholder="Select province"
-      />
-      {/* BARANGAY INPUT */}
-      <Text style={[Styles.text, localStyles.formLabels]}>Barangay</Text>
-      <TextInput
-        style={[Styles.inputFields, { marginBottom: 20, width: '100%' }]}
-        placeholder="Enter Barangay Here"
-        placeholderTextColor="#8b8b8bff"
-        value={areaBarangay}
-        onChangeText={setAreaBarangay}
-        multiline={false}
       />
       {/* ORGANIZATION INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Organization</Text>
@@ -1182,7 +1167,6 @@ export default function Map() {
         areaName,
         areaRegion,
         areaProvince,
-        areaBarangay,
         areaOrganization,
         areaSlope,
         areaMasl,
@@ -1203,7 +1187,6 @@ export default function Map() {
     areaName,
     areaRegion,
     areaProvince,
-    areaBarangay,
     areaOrganization,
     areaSlope,
     areaMasl,
@@ -1255,7 +1238,7 @@ export default function Map() {
           </Marker>
         ))}
 
-        {userLocation &&
+        {/* {userLocation &&
           !isCoordinateInArray(
             userLocation,
             points.map((p) => ({
@@ -1270,15 +1253,13 @@ export default function Map() {
               title="My Location"
               pinColor={Platform.OS !== 'ios' ? 'blue' : undefined}
             >
-              {Platform.OS === 'ios' && (
-                <MaterialCommunityIcons
-                  name="crosshairs-gps"
-                  size={0}
-                  color="blue"
-                />
-              )}
+              <MaterialCommunityIcons
+                name="crosshairs-gps"
+                size={0}
+                color="blue"
+              />
             </Marker>
-          )}
+          )} */}
 
         {points.length > 1 && (
           <Polyline coordinates={points} strokeWidth={3} strokeColor="blue" />

@@ -12,6 +12,7 @@ import DraftsPage from '../(pages)/auth/usr/DraftsPage';
 import FarmActivityScreen from '../(pages)/auth/usr/FarmActivity';
 import ImageViewerScreen from '../(pages)/auth/usr/ImageViewer';
 import AccountSettingsScreen from '../(pages)/auth/usr/AccountSettings';
+import MapDetailsUpdate from '../(pages)/auth/usr/MapDetailsUpdate';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -79,6 +80,10 @@ function AuthenticatedUserStack() {
           name="Test"
           component={Test}
           options={{ title: 'Test' }}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="MapDetailsUpdate"
+          component={MapDetailsUpdate}
         />
       </AuthenticatedUserFlowStack.Navigator>
     </PointsProvider>

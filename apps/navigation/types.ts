@@ -23,7 +23,6 @@ export type AreaEntry = {
   Region?: string;
   Province?: string;
   Organization: string;
-  Barangay: string;
   Slope: string;
   Masl: string;
   Soil_Type: string;
@@ -56,6 +55,7 @@ export type RootStackParamList = {
   Loading: undefined;
   AuthenticatedStack: undefined;
   MapPreview: { areaId: number } | undefined;
+  MapDetailsUpdate: { areaId: number } | undefined;
   ImageViewerScreen:
     | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
     | undefined;
@@ -102,6 +102,10 @@ export type DraftsPageProps = NativeStackScreenProps<
 export type MapPreviewProps = NativeStackScreenProps<
   RootStackParamList,
   'MapPreview'
+>;
+export type MapDetailsUpdateProps = NativeStackNavigationProp<
+  RootStackParamList,
+  'MapDetailsUpdate'
 >;
 export type ImageViewerProps = NativeStackScreenProps<
   RootStackParamList,

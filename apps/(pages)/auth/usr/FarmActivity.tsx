@@ -20,7 +20,7 @@ import { useAuth } from '../../../context/AuthContext';
 import DropdownComponent, {
   DropdownItem,
 } from '../../../components/FormDropdown';
-import { philippineCrops } from '../../../data/Crops';
+import { philippineCrops } from '../../../../assets/data/Crops';
 
 // --- Utility: Flatten Crops data for Dropdown ---
 const getAllCropOptions = (): DropdownItem[] => {
@@ -253,7 +253,7 @@ export default function FarmActivityManagerScreen() {
   const renderActivityForm = () => (
     <View style={localStyles.formContainer}>
       <Text style={localStyles.formTitle}>
-        Add New Farm Activity for Farm ID: {areaId}
+        Add New Farm Plan for Farm ID: {areaId}
       </Text>
 
       {/* Crop Dropdown */}
@@ -312,7 +312,7 @@ export default function FarmActivityManagerScreen() {
         {isSubmitting ? (
           <ActivityIndicator color={Styles.buttonText.color} />
         ) : (
-          <Text style={Styles.buttonText}>Save Activity</Text>
+          <Text style={Styles.buttonText}>Save Plan</Text>
         )}
       </TouchableOpacity>
 
@@ -349,14 +349,14 @@ export default function FarmActivityManagerScreen() {
           onPress={() => setIsFormVisible((prev) => !prev)}
         >
           <Text style={Styles.buttonText}>
-            {isFormVisible ? 'Hide Input Form' : '➕ Add New Activity'}
+            {isFormVisible ? 'Hide Form' : '➕ Plan New Crop'}
           </Text>
         </TouchableOpacity>
 
         {isFormVisible && renderActivityForm()}
 
         <Text style={localStyles.sectionTitle}>
-          Harvests for Area ID: {areaId} ({harvestRecords.length})
+          Harvests for Area ID: {areaId}
         </Text>
 
         {isLoading ? (
