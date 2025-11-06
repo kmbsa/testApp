@@ -8,6 +8,11 @@ export type Coordinate = {
   longitude: number;
 };
 
+export type topography = {
+  Slope: number;
+  Mean_Average_Sea_Level: number;
+};
+
 export type Photo = {
   id: string;
   uri: string;
@@ -20,11 +25,10 @@ export type AreaEntry = {
   Area_ID: number;
   User_ID: number;
   Area_Name: string;
-  Region?: string;
-  Province?: string;
+  Region: string;
+  Province: string;
   Organization: string;
-  Slope: string;
-  Masl: string;
+  topography: topography[];
   Soil_Type: string;
   Hectares: string;
   Suitability: string;
@@ -103,7 +107,7 @@ export type MapPreviewProps = NativeStackScreenProps<
   RootStackParamList,
   'MapPreview'
 >;
-export type MapDetailsUpdateProps = NativeStackNavigationProp<
+export type MapDetailsUpdateProps = NativeStackScreenProps<
   RootStackParamList,
   'MapDetailsUpdate'
 >;
