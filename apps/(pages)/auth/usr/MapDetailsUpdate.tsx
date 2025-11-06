@@ -18,7 +18,6 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/build/Ionicons';
 import axios from 'axios';
 
-// --- IMPORTS FROM YOUR PROJECT ---
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
@@ -107,28 +106,21 @@ const MapDetailsUpdate = () => {
     fetchAreaDetails();
   }, [fetchAreaDetails]);
 
-  // -----------------------------------------------------------
-  // 2. Update Logic (FIXED: Explicit Number Conversion for Payload)
-  // -----------------------------------------------------------
   const handleUpdate = async () => {
     if (isUpdating || !areaId || !userToken) return;
 
     setIsUpdating(true);
     setError(null);
 
-    // Prepare ALL updated fields
     const updatedData = {
       Area_Name: areaName.trim(),
       Region: region.trim(),
       Province: province.trim(),
       Organization: organization.trim(),
-      topography: [
-        {
-          // FIX: Convert the string state back to a Number for the API payload
-          Slope: Number(slope.trim()),
-          Mean_Average_Sea_Level: Number(masl.trim()),
-        },
-      ],
+      topography: {
+        Slope: Number(slope.trim()),
+        Mean_Average_Sea_Level: Number(masl.trim()),
+      },
       Hectares: hectares.trim(),
     };
 

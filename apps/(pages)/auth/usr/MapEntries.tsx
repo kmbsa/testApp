@@ -147,7 +147,6 @@ export default function MapEntriesScreen() {
         return;
       }
 
-      // Set the appropriate loading state
       if (page === 1) {
         setIsLoading(true);
       } else {

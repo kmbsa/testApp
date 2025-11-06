@@ -104,7 +104,6 @@ export default function AreaDetailsScreen() {
   const { userToken, signOut } = useAuth();
 
   const [areaData, setAreaData] = useState<AreaEntry | null>(null);
-  const [areaFarmData, setAreaFarmData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -186,7 +185,6 @@ export default function AreaDetailsScreen() {
 
       const data = await response.data;
       setAreaData(data.area);
-      setAreaFarmData(data.area.farm[0]);
 
       if (
         data.area &&
@@ -195,10 +193,9 @@ export default function AreaDetailsScreen() {
       ) {
         const mapCoordinates = data.area.coordinates
           .map((coord: BackendCoordinate) => ({
-            latitude: coord.Latitude,
-            longitude: coord.Longitude,
+            latitude: Number(coord.Latitude),
+            longitude: Number(coord.Longitude),
           }))
-          // 🚨 Add this defensive filter
           .filter(
             (coord: { latitude: number; longitude: number }) =>
               typeof coord.latitude === 'number' &&
@@ -209,8 +206,8 @@ export default function AreaDetailsScreen() {
 
         // 🚨 FIX: Call fetchCurrentWeather after successful data fetch
         const centerCoord = {
-          latitude: data.area.coordinates[0].Latitude,
-          longitude: data.area.coordinates[0].Longitude,
+          latitude: Number(data.area.coordinates[0].Latitude),
+          longitude: Number(data.area.coordinates[0].Longitude),
         };
         fetchCurrentWeather(centerCoord);
 
@@ -314,7 +311,6 @@ export default function AreaDetailsScreen() {
     }, [fetchAreaDetails, fetchOngoingCropsCount]),
   );
 
-  // 🚨 MODIFIED: openImageViewer now closes the current modal
   const openImageViewer = (index: number) => {
     if (areaData && areaData.images && API_URL) {
       setModalVisible(false);
@@ -326,7 +322,9 @@ export default function AreaDetailsScreen() {
     }
   };
 
-  const getInitialRegion = ():
+  const getInitialRegion = (
+    areaData: AreaEntry | null,
+  ):
     | {
         latitude: number;
         longitude: number;
@@ -337,8 +335,8 @@ export default function AreaDetailsScreen() {
     if (areaData && areaData.coordinates && areaData.coordinates.length > 0) {
       const firstCoord = areaData.coordinates[0];
       return {
-        latitude: firstCoord.Latitude,
-        longitude: firstCoord.Longitude,
+        latitude: Number(firstCoord.Latitude),
+        longitude: Number(firstCoord.Longitude),
         latitudeDelta: 0.0922,
         longitudeDelta: 0.0421,
       };
@@ -409,8 +407,8 @@ export default function AreaDetailsScreen() {
 
   const mapCoordinates = areaData.coordinates.map(
     (coord: BackendCoordinate) => ({
-      latitude: coord.Latitude,
-      longitude: coord.Longitude,
+      latitude: Number(coord.Latitude),
+      longitude: Number(coord.Longitude),
     }),
   );
 
@@ -434,7 +432,7 @@ export default function AreaDetailsScreen() {
           ref={mapRef}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           style={localStyles.map}
-          initialRegion={getInitialRegion()}
+          initialRegion={getInitialRegion(areaData)}
           mapType="hybrid"
           onMapReady={() => {
             if (mapCoordinates.length > 0 && mapRef.current) {
@@ -493,7 +491,6 @@ export default function AreaDetailsScreen() {
           activeOpacity={1}
           onPressOut={() => setModalVisible(false)}
         >
-          {/* This View captures touch events to prevent the modal from closing when tapping content inside it. */}
           <View
             style={[
               localStyles.modalContent,
