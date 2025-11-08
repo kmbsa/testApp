@@ -596,9 +596,7 @@ export default function Map() {
       organization: areaOrganization,
       slope: areaSlope,
       masl: areaMasl,
-      soil_type: areaSoilType,
       hectares: areaInHectares,
-      suitability: areaSoilSuitability,
       coordinates: points,
       photos: formPhotos.map((p) => ({
         base64: p.base64,
@@ -655,9 +653,7 @@ export default function Map() {
       !areaProvince?.trim() ||
       !areaOrganization.trim() ||
       !areaSlope.trim() ||
-      !areaMasl.trim() ||
-      !areaSoilType.trim() ||
-      !areaSoilSuitability.trim()
+      !areaMasl.trim()
     ) {
       Alert.alert(
         'Missing Information',
@@ -788,7 +784,7 @@ export default function Map() {
   ).current;
 
   const handleNextPage = () => {
-    if (currentPage != 3) {
+    if (currentPage != 2) {
       setCurrentPage((prev) => prev + 1);
     } else {
       setCurrentPage(1);
@@ -799,7 +795,7 @@ export default function Map() {
     if (currentPage != 1) {
       setCurrentPage((prev) => prev - 1);
     } else {
-      setCurrentPage(3);
+      setCurrentPage(2);
     }
   };
 
@@ -857,7 +853,7 @@ export default function Map() {
           },
         ]}
       >
-        Area Location Details (1/3)
+        Area Location Details (1/2)
       </Text>
       {/* NAME INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Area Name</Text>
@@ -1006,7 +1002,7 @@ export default function Map() {
         <FormButton
           title="Next"
           onPress={handleNextPage}
-          disabled={currentPage >= 3}
+          disabled={currentPage >= 2}
           additionalStyles={[localStyles.smallPhotoButton]}
         />
       </View>
@@ -1029,7 +1025,7 @@ export default function Map() {
           },
         ]}
       >
-        Topographical Data (2/3)
+        Topographical Data (2/2)
       </Text>
 
       {/* SLOPE INPUT */}
@@ -1058,61 +1054,6 @@ export default function Map() {
         keyboardType="numeric"
         multiline={false}
       />
-      {/* PAGE SWITCH BUTTONS */}
-      <View style={[Styles.twoButtonContainer]}>
-        <FormButton
-          title="Back"
-          onPress={handleBackPage}
-          disabled={currentPage <= 1}
-          additionalStyles={[localStyles.smallPhotoButton]}
-        />
-        <FormButton
-          title="Next"
-          onPress={handleNextPage}
-          disabled={currentPage >= 3}
-          additionalStyles={[localStyles.smallPhotoButton]}
-        />
-      </View>
-      {renderCancelButton()}
-    </View>
-  );
-
-  // --- MODAL PAGE 3: FARM PROPERTIES ---
-  const renderFarmPropertiesForm = () => (
-    <View>
-      <Text
-        style={[
-          Styles.text,
-          {
-            marginBottom: 15,
-            textAlign: 'center',
-            fontSize: 18,
-            fontWeight: 'bold',
-          },
-        ]}
-      >
-        Farm Properties (3/3)
-      </Text>
-      {/* SOIL TYPE DROPDOWN */}
-      <Text style={[Styles.text, localStyles.formLabels]}>Soil Type</Text>
-      <FormDropdown
-        data={SoilTypeData}
-        value={areaSoilType}
-        onValueChange={(val) => {
-          setAreaSoilType(val);
-        }}
-      />
-      {/* SOIL SUITABILITY DROPDOWN */}
-      <Text style={[Styles.text, localStyles.formLabels]}>
-        Soil Suitability
-      </Text>
-      <FormDropdown
-        data={SoilSuitabilityData}
-        value={areaSoilSuitability}
-        onValueChange={(val) => {
-          setAreaSoilSuitability(val);
-        }}
-      />
       {/* HECTARES INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Hectares</Text>
       <TextInput
@@ -1134,7 +1075,7 @@ export default function Map() {
         <FormButton
           title="Next"
           onPress={handleNextPage}
-          disabled={currentPage >= 3}
+          disabled={currentPage >= 2}
           additionalStyles={[localStyles.smallPhotoButton]}
         />
       </View>
@@ -1151,7 +1092,6 @@ export default function Map() {
           <Text style={Styles.buttonText}>Submit Area Details</Text>
         )}
       </TouchableOpacity>
-
       {renderCancelButton()}
     </View>
   );
@@ -1477,7 +1417,6 @@ export default function Map() {
                 {/* Conditional Rendering based on currentPage state */}
                 {currentPage === 1 && renderAreaDetailsForm()}
                 {currentPage === 2 && renderTopographicalForm()}
-                {currentPage === 3 && renderFarmPropertiesForm()}
               </ScrollView>
             </Animated.View>
           </View>
