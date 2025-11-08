@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, StyleProp, ViewStyle } from 'react-native'; // <-- IMPORT StyleProp and ViewStyle
 import { Dropdown } from 'react-native-element-dropdown';
 
 export type DropdownItem = {
@@ -18,6 +18,9 @@ export type FormDropdownProps = {
     data: DropdownItem[],
     dependentValue: string | null,
   ) => DropdownItem[];
+  // 1. Added style prop to allow external styling
+  style?: StyleProp<ViewStyle>;
+  disabled?: boolean; // Adding this for completeness based on MapDetailsUpdate usage
 };
 
 const DropdownComponent: React.FC<FormDropdownProps> = ({
@@ -27,6 +30,8 @@ const DropdownComponent: React.FC<FormDropdownProps> = ({
   placeholder = 'Select item',
   dependentOnValue,
   filterData,
+  style, // 2. Destructured the style prop
+  disabled = false,
 }) => {
   const [internalValue, setInternalValue] = useState<string | null>(null);
   const [isFocus, setIsFocus] = useState(false);
@@ -47,9 +52,14 @@ const DropdownComponent: React.FC<FormDropdownProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    // 3. Applied external style to the container View
+    <View style={[styles.container, style]}>
       <Dropdown
-        style={[styles.dropdown, isFocus && { borderColor: 'blue' }]}
+        style={[
+          styles.dropdown,
+          isFocus && { borderColor: 'blue' },
+          disabled && styles.disabledDropdown,
+        ]}
         placeholderStyle={styles.placeholderStyle}
         selectedTextStyle={styles.selectedTextStyle}
         inputSearchStyle={styles.inputSearchStyle}
@@ -65,6 +75,7 @@ const DropdownComponent: React.FC<FormDropdownProps> = ({
         onFocus={() => setIsFocus(true)}
         onBlur={() => setIsFocus(false)}
         onChange={handleChange}
+        disable={disabled}
       />
     </View>
   );
@@ -74,6 +85,8 @@ export default DropdownComponent;
 
 const styles = StyleSheet.create({
   container: {
+    // This width is what you are now overriding from the parent
+    // If you had a fixed width here, the style prop will now override it.
     backgroundColor: '#3D550C',
     padding: 0,
     marginBottom: 15,
@@ -85,6 +98,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     backgroundColor: 'white',
+  },
+  disabledDropdown: {
+    backgroundColor: '#f0f0f0',
   },
   icon: {
     marginRight: 5,
@@ -99,11 +115,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   placeholderStyle: {
-    fontSize: 20,
-    color: '#8b8b8bff',
+    fontSize: 16,
+    color: 'gray',
   },
   selectedTextStyle: {
-    fontSize: 20,
+    fontSize: 16,
   },
   iconStyle: {
     width: 20,
@@ -111,6 +127,6 @@ const styles = StyleSheet.create({
   },
   inputSearchStyle: {
     height: 40,
-    fontSize: 20,
+    fontSize: 16,
   },
 });

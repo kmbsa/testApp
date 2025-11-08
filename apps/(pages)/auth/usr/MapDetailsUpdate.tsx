@@ -23,6 +23,10 @@ import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 import { AreaEntry, MapDetailsUpdateProps } from '../../../navigation/types';
 
+import FormDropdown from '../../../components/FormDropdown';
+
+import { provincesByRegion } from '../../../../assets/data/Regions';
+
 const MapDetailsUpdate = () => {
   const navigation = useNavigation<MapDetailsUpdateProps['navigation']>();
   const route = useRoute<MapDetailsUpdateProps['route']>();
@@ -38,12 +42,25 @@ const MapDetailsUpdate = () => {
   const [areaData, setAreaData] = useState<AreaEntry | null>(null);
 
   const [areaName, setAreaName] = useState('');
-  const [region, setRegion] = useState('');
-  const [province, setProvince] = useState('');
+
+  const [areaRegion, setAreaRegion] = useState<string | null>('');
+  const [areaProvince, setAreaProvince] = useState<string | null>('');
   const [organization, setOrganization] = useState('');
   const [slope, setSlope] = useState('');
   const [masl, setMasl] = useState('');
   const [hectares, setHectares] = useState('');
+
+  const provincesForSelectedRegion =
+    provincesByRegion.find((r) => r.region === areaRegion)?.provinces || [];
+
+  useEffect(() => {
+    if (
+      areaProvince &&
+      !provincesForSelectedRegion.some((p) => p.value === areaProvince)
+    ) {
+      setAreaProvince(null);
+    }
+  }, [areaRegion, provincesForSelectedRegion]);
 
   const fetchAreaDetails = useCallback(async () => {
     if (!areaId) {
@@ -77,8 +94,9 @@ const MapDetailsUpdate = () => {
       setAreaData(fetchedArea);
 
       setAreaName(fetchedArea.Area_Name || '');
-      setRegion(fetchedArea.Region || '');
-      setProvince(fetchedArea.Province || '');
+      // Update state for Region and Province
+      setAreaRegion(fetchedArea.Region || null);
+      setAreaProvince(fetchedArea.Province || null);
       setOrganization(fetchedArea.Organization || '');
 
       const topographyData = fetchedArea.topography?.[0];
@@ -109,13 +127,21 @@ const MapDetailsUpdate = () => {
   const handleUpdate = async () => {
     if (isUpdating || !areaId || !userToken) return;
 
+    if (areaRegion === null || areaProvince === null) {
+      Alert.alert(
+        'Missing Information',
+        'Please select a Region and Province.',
+      );
+      return;
+    }
+
     setIsUpdating(true);
     setError(null);
 
     const updatedData = {
       Area_Name: areaName.trim(),
-      Region: region.trim(),
-      Province: province.trim(),
+      Region: areaRegion.trim(),
+      Province: areaProvince.trim(),
       Organization: organization.trim(),
       topography: {
         Slope: Number(slope.trim()),
@@ -222,7 +248,10 @@ const MapDetailsUpdate = () => {
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Area Name</Text>
               <TextInput
-                style={Styles.inputFields}
+                style={[
+                  Styles.inputFields,
+                  { marginBottom: 15, width: '100%' },
+                ]}
                 placeholder="Area Name"
                 placeholderTextColor="#A9A9A9"
                 value={areaName}
@@ -230,32 +259,39 @@ const MapDetailsUpdate = () => {
               />
             </View>
 
+            {/* REGION DROPDOWN */}
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Region</Text>
-              <TextInput
-                style={Styles.inputFields}
-                placeholder="Region"
-                placeholderTextColor="#A9A9A9"
-                value={region}
-                onChangeText={setRegion}
+              <FormDropdown
+                style={{ width: '100%' }}
+                data={provincesByRegion.map((r) => ({
+                  label: r.region,
+                  value: r.region,
+                }))}
+                value={areaRegion}
+                onValueChange={setAreaRegion}
               />
             </View>
 
+            {/* PROVINCE DROPDOWN */}
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Province</Text>
-              <TextInput
-                style={Styles.inputFields}
-                placeholder="Province"
-                placeholderTextColor="#A9A9A9"
-                value={province}
-                onChangeText={setProvince}
+              <FormDropdown
+                style={{ width: '100%' }}
+                data={provincesForSelectedRegion}
+                value={areaProvince}
+                onValueChange={setAreaProvince}
+                placeholder="Select province"
               />
             </View>
 
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Organization</Text>
               <TextInput
-                style={Styles.inputFields}
+                style={[
+                  Styles.inputFields,
+                  { marginBottom: 15, width: '100%' },
+                ]}
                 placeholder="Organization"
                 placeholderTextColor="#A9A9A9"
                 value={organization}
@@ -268,7 +304,10 @@ const MapDetailsUpdate = () => {
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Slope</Text>
               <TextInput
-                style={Styles.inputFields}
+                style={[
+                  Styles.inputFields,
+                  { marginBottom: 15, width: '100%' },
+                ]}
                 placeholder="Slope"
                 placeholderTextColor="#A9A9A9"
                 value={slope}
@@ -280,7 +319,10 @@ const MapDetailsUpdate = () => {
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Masl (Meters Above Sea Level)</Text>
               <TextInput
-                style={Styles.inputFields}
+                style={[
+                  Styles.inputFields,
+                  { marginBottom: 15, width: '100%' },
+                ]}
                 placeholder="Masl"
                 placeholderTextColor="#A9A9A9"
                 value={masl}
@@ -294,7 +336,10 @@ const MapDetailsUpdate = () => {
             <View style={localStyles.fieldGroup}>
               <Text style={Styles.text}>Hectares</Text>
               <TextInput
-                style={Styles.inputFields}
+                style={[
+                  Styles.inputFields,
+                  { marginBottom: 15, width: '100%' },
+                ]}
                 placeholder="Hectares"
                 placeholderTextColor="#A9A9A9"
                 value={hectares}
@@ -305,9 +350,12 @@ const MapDetailsUpdate = () => {
 
             {/* Update Button */}
             <TouchableOpacity
-              style={isUpdating ? Styles.disabledButton : Styles.button}
+              style={[
+                isUpdating ? Styles.disabledButton : Styles.button,
+                { marginBottom: 15, width: '100%' },
+              ]}
               onPress={handleUpdate}
-              disabled={isUpdating}
+              disabled={isUpdating || !areaRegion || !areaProvince} // Disable if region/province is missing
             >
               {isUpdating ? (
                 <ActivityIndicator
