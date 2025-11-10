@@ -154,7 +154,13 @@ const saveDraft = async (draftData: DraftData) => {
   }
 };
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
 import { useRoute } from '@react-navigation/native';
 import {
   Platform,
@@ -182,6 +188,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_URL } from '@env';
 import axios, { AxiosError } from 'axios';
 import * as turf from '@turf/turf';
+import type {
+  Position,
+  Polygon,
+  MultiPolygon,
+  FeatureCollection,
+  Feature,
+} from 'geojson';
 import FormDropdown from '../../../components/FormDropdown';
 import FormButton from '../../../components/FormButton';
 
@@ -201,9 +214,80 @@ import { useAuth } from '../../../context/AuthContext';
 
 import Styles from '../../../styles/styles';
 
-import { SoilTypeData } from '../../../../assets/data/SoilType';
-import { SoilSuitabilityData } from '../../../../assets/data/SoilSuitability';
-import { provincesByRegion } from '../../../../assets/data/Regions';
+import gadm41_PHL_1 from '../../../../assets/data/gadm41_PHL_1.json';
+import {
+  findRegionForProvince,
+  provincesByRegion,
+  ProvinceEntry,
+} from '../../../../assets/data/Regions';
+
+/**
+ * Performs the Centroid-in-Polygon test to find the province.
+ * @param polygonPoints The user-drawn polygon coordinates (Coordinate[]).
+ * @returns The determined province and region names.
+ */
+const lookupAreaLocation = (
+  polygonPoints: { latitude: number; longitude: number }[],
+): { province: string | null; region: string | null } => {
+  if (polygonPoints.length < 3) return { province: null, region: null };
+
+  // 1. Convert react-native-maps points to Turf.js Polygon Feature
+  const coords: Position[] = polygonPoints.map((p) => [
+    p.longitude,
+    p.latitude,
+  ]);
+  if (
+    coords.length > 0 &&
+    (coords[0][0] !== coords[coords.length - 1][0] ||
+      coords[0][1] !== coords[coords.length - 1][1])
+  ) {
+    coords.push(coords[0]);
+  }
+  const turfPolygon = turf.polygon([coords]);
+
+  // 2. Calculate the robust centroid of the user-drawn polygon
+  const centerPoint = turf.centroid(turfPolygon);
+
+  // 3. Find the matching province label in the GeoJSON (e.g., 'CamarinesSur')
+  const geojsonFeatures = (
+    gadm41_PHL_1 as FeatureCollection<Polygon | MultiPolygon>
+  ).features;
+
+  let provinceGadmLabel: string | null = null;
+  for (const feature of geojsonFeatures) {
+    if (turf.booleanPointInPolygon(centerPoint, feature)) {
+      // NAME_1 is the exact GeoJSON label (e.g., 'CamarinesSur')
+      provinceGadmLabel = feature.properties?.NAME_1 as string;
+      break;
+    }
+  }
+
+  if (!provinceGadmLabel) {
+    return { province: null, region: null };
+  }
+
+  // 4. Use the GeoJSON label to find the user-friendly 'value' and 'region'
+  let userFriendlyProvinceName: string | null = null;
+  let regionName: string | null = null;
+
+  // Find the matching entry in the tabular data
+  for (const regionEntry of provincesByRegion) {
+    const foundProvinceEntry = regionEntry.provinces.find(
+      // Look up using the GeoJSON label
+      (p: ProvinceEntry) => p.gadm41_label === provinceGadmLabel,
+    );
+
+    if (foundProvinceEntry) {
+      // Set the province state to the user-friendly value ('Camarines Sur')
+      userFriendlyProvinceName = foundProvinceEntry.value;
+      // Set the region name
+      regionName = regionEntry.region;
+      break;
+    }
+  }
+
+  return { province: userFriendlyProvinceName, region: regionName };
+};
 
 export default function Map() {
   // Get draft from navigation params
@@ -273,6 +357,8 @@ export default function Map() {
     closePolygon,
     insertPoint,
     updatePoint,
+    province,
+    region,
   } = usePointsContext();
   const {
     formPhotos,
@@ -298,8 +384,17 @@ export default function Map() {
 
   const [draftName, setDraftName] = useState('');
 
-  const provincesForSelectedRegion =
-    provincesByRegion.find((r) => r.region === areaRegion)?.provinces || [];
+  const provincesForSelectedRegion = useMemo(() => {
+    if (!areaRegion) {
+      // If no region is selected (or found), return an empty array or all provinces
+      // Returning empty is safer for performance and UI clarity
+      return [];
+    }
+    // Find the entry that matches the current areaRegion
+    const regionData = provincesByRegion.find((r) => r.region === areaRegion);
+    // Return its list of provinces, or an empty array if not found
+    return regionData ? regionData.provinces : [];
+  }, [areaRegion]);
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -358,7 +453,6 @@ export default function Map() {
     // Turf.js expects the coordinates to be in [longitude, latitude] format.
     let geojsonCoords = coordinates.map((c) => [c.longitude, c.latitude]);
 
-    // 2. CRITICAL FIX: Ensure the loop is closed by duplicating the first point
     const firstPoint = geojsonCoords[0];
     const lastPoint = geojsonCoords[geojsonCoords.length - 1];
 
@@ -385,6 +479,81 @@ export default function Map() {
       console.error('Turf.js Calculation Error:', error);
       // Return 0 or re-throw a clearer error if needed
       return 0;
+    }
+  };
+
+  const availableProvinces = useMemo(() => {
+    const regionData = provincesByRegion.find((r) => r.region === areaRegion);
+    return regionData ? regionData.provinces : [];
+  }, [areaRegion]);
+
+  /**
+   * Filters the GeoJSON data, calculates the bounding box using turf.bbox,
+   * and animates the map to fit the area.
+   */
+  const goToArea = (provinceName: string | null, regionName: string | null) => {
+    // Cast the imported JSON to a FeatureCollection for turf to work
+    let featureCollection: FeatureCollection =
+      gadm41_PHL_1 as FeatureCollection;
+
+    // Filter features based on selection
+    if (provinceName) {
+      featureCollection = turf.featureCollection(
+        featureCollection.features.filter(
+          // GeoJSON NAME_1 property holds the province name
+          (feature: Feature) => feature.properties?.NAME_1 === provinceName,
+        ),
+      );
+    } else if (regionName) {
+      // If no province is selected, filter to all provinces within the region
+      const regionData = provincesByRegion.find((r) => r.region === regionName);
+      if (regionData) {
+        const provinceNames = regionData.provinces.map((p) => p.value);
+        featureCollection = turf.featureCollection(
+          featureCollection.features.filter((feature: Feature) =>
+            provinceNames.includes(feature.properties?.NAME_1),
+          ),
+        );
+      }
+    }
+
+    if (featureCollection.features.length > 0) {
+      // 1. Use turf.js to calculate the bounding box for the entire filtered area
+      const boundingBox = turf.bbox(featureCollection); //
+
+      // 2. Convert the bounding box [minLon, minLat, maxLon, maxLat]
+      //    to the corner coordinates required by react-native-maps's fitToCoordinates
+      const [minLon, minLat, maxLon, maxLat] = boundingBox;
+      const coordinatesToFit = [
+        { latitude: maxLat, longitude: maxLon },
+        { latitude: minLat, longitude: minLon },
+      ];
+
+      // 3. Zoom the map to the calculated bounds
+      mapRef.current?.fitToCoordinates(coordinatesToFit, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    }
+  };
+
+  // Handler for Region selection
+  const handleRegionChange = (region: string | null) => {
+    setAreaRegion(region);
+    setAreaProvince(null); // Reset province when region changes
+    if (region) {
+      goToArea(null, region); // Zoom to the entire region
+    }
+  };
+
+  // Handler for Province selection
+  const handleProvinceChange = (province: string | null) => {
+    setAreaProvince(province);
+    if (province) {
+      goToArea(province, areaRegion); // Zoom to the specific province
+    } else if (areaRegion) {
+      // If province is deselected, zoom back to the entire region
+      goToArea(null, areaRegion);
     }
   };
 
@@ -539,27 +708,31 @@ export default function Map() {
       return;
     }
 
+    // 1. Perform the Geo-lookup
+    const { province, region } = lookupAreaLocation(points);
+
+    // 2. Update the context state (stores province/region)
+    setIsComplete(true, province ?? undefined, region ?? undefined);
+
+    // --- ADD THESE TWO LINES ---
+    // This will update the local state for the dropdowns in the modal
+    setAreaProvince(province);
+    setAreaRegion(region);
+
+    console.log(`Province: ${areaProvince} || Region: ${areaRegion}\n`);
+    // --- END OF ADDITION ---
+
     console.log(
       '>>> Map: Completing shape via button press. Calling context.closePolygon()',
     );
     closePolygon();
-
     const calculatedArea = calculateAreaInHectares([...points]);
     setAreaInHectares(calculatedArea);
-
     Alert.alert(
       'Shape Completed',
-      'Your polygon has been drawn. You should now fill out the form for this area.',
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            setModalVisible(true);
-            panY.setValue(0);
-            setCurrentPage(1);
-          },
-        },
-      ],
+      `Province: ${province || 'Not Found'}\nRegion: ${
+        region || 'Not Found'
+      }\nArea: ${calculatedArea.toFixed(4)} hectares.`,
     );
   };
 
@@ -872,15 +1045,15 @@ export default function Map() {
           label: r.region,
           value: r.region,
         }))}
-        value={areaRegion}
-        onValueChange={setAreaRegion}
+        value={areaRegion ?? undefined}
+        onValueChange={handleRegionChange}
       />
       {/* PROVINCE INPUT */}
       <Text style={[Styles.text, localStyles.formLabels]}>Province</Text>
       <FormDropdown
         data={provincesForSelectedRegion}
-        value={areaProvince}
-        onValueChange={setAreaProvince}
+        value={areaProvince ?? undefined}
+        onValueChange={handleProvinceChange}
         placeholder="Select province"
       />
       {/* ORGANIZATION INPUT */}

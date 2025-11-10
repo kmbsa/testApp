@@ -11,13 +11,19 @@ interface PointsContextType {
   points: Coordinate[];
   redoStack: Coordinate[];
   isComplete: boolean;
+  province: string | null;
+  region: string | null;
   addPoint: (point: Coordinate) => void;
   insertPoint: (point: Coordinate, index: number) => void;
   updatePoint: (index: number, newPoint: Coordinate) => void;
   resetPoints: () => void;
   undoPoint: () => void;
   redoPoint: () => void;
-  setIsComplete: (complete: boolean) => void;
+  setIsComplete: (
+    complete: boolean,
+    province?: string,
+    region?: string,
+  ) => void;
   closePolygon: () => void;
 }
 
@@ -103,6 +109,9 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [points, setPoints] = useState<Coordinate[]>([]);
   const [redoStack, setRedoStack] = useState<Coordinate[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+
+  const [province, setProvince] = useState<string | null>(null);
+  const [region, setRegion] = useState<string | null>(null);
 
   const addPoint = useCallback((point: Coordinate) => {
     console.log('>>> Context: addPoint called with point:', point);
@@ -215,10 +224,23 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, [setIsComplete]);
 
-  const handleSetIsComplete = useCallback((complete: boolean) => {
-    console.log('>>> Context: Setting isComplete to', complete);
-    setIsComplete(complete);
-  }, []);
+  const handleSetIsComplete = useCallback(
+    (complete: boolean, newProvince?: string, newRegion?: string) => {
+      setIsComplete(complete);
+      console.log(
+        `>>> Context: Setting isComplete: ${complete}. Province: ${newProvince}, Region: ${newRegion}`,
+      );
+      if (complete) {
+        setProvince(newProvince ?? null);
+        setRegion(newRegion ?? null);
+      } else {
+        // Reset location data when polygon is opened for editing
+        setProvince(null);
+        setRegion(null);
+      }
+    },
+    [],
+  );
 
   const closePolygon = useCallback(() => {
     console.log('>>> Context: Attempting to close polygon.');
@@ -318,6 +340,8 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({
       points,
       redoStack,
       isComplete,
+      province,
+      region,
       addPoint,
       insertPoint,
       updatePoint,
@@ -331,6 +355,8 @@ export const PointsProvider: React.FC<{ children: React.ReactNode }> = ({
       points,
       redoStack,
       isComplete,
+      province,
+      region,
       addPoint,
       insertPoint,
       updatePoint,
