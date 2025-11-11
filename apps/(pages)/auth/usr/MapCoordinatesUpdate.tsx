@@ -476,8 +476,14 @@ const MapCoordinatesUpdate = () => {
       const fetchedCoordinates: BackendCoordinate[] =
         fetchedArea.coordinates || [];
       const initialCoordinates: Coordinate[] = fetchedCoordinates.map((bc) => ({
-        latitude: bc.Latitude,
-        longitude: bc.Longitude,
+        latitude:
+          typeof bc.Latitude === 'string'
+            ? parseFloat(bc.Latitude)
+            : bc.Latitude,
+        longitude:
+          typeof bc.Longitude === 'string'
+            ? parseFloat(bc.Longitude)
+            : bc.Longitude,
       }));
       // -------------------------------------------------------------------
 
