@@ -60,6 +60,7 @@ export type RootStackParamList = {
   AuthenticatedStack: undefined;
   MapPreview: { areaId: number } | undefined;
   MapDetailsUpdate: { areaId: number } | undefined;
+  MapCoordinatesUpdate: { areaId: number } | undefined;
   ImageViewerScreen:
     | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
     | undefined;
@@ -110,6 +111,10 @@ export type MapPreviewProps = NativeStackScreenProps<
 export type MapDetailsUpdateProps = NativeStackScreenProps<
   RootStackParamList,
   'MapDetailsUpdate'
+>;
+export type MapCoordinatesUpdateProps = NativeStackScreenProps<
+  RootStackParamList,
+  'MapCoordinatesUpdate'
 >;
 export type ImageViewerProps = NativeStackScreenProps<
   RootStackParamList,

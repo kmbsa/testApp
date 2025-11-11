@@ -24,9 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import Styles from '../../../styles/styles';
 import { usePhotosContext } from '../../../context/PhotosContext';
 
-import type {
-  RootStackNavigationProp,
-} from '../../../navigation/types';
+import type { RootStackNavigationProp } from '../../../navigation/types';
 
 export default function PhotoCaptureScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();

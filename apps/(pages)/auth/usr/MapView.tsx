@@ -538,6 +538,17 @@ export default function AreaDetailsScreen() {
               >
                 <Text style={Styles.buttonText}>More Details</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[Styles.button, localStyles.farmActivityButton]}
+                onPress={() => {
+                  navigation.navigate('MapCoordinatesUpdate', {
+                    areaId: areaData.Area_ID,
+                  });
+                  setModalVisible(false);
+                }}
+              >
+                <Text style={Styles.buttonText}>Update Coordinates</Text>
+              </TouchableOpacity>
               <Text
                 style={[
                   localStyles.modalText,

@@ -13,6 +13,7 @@ import FarmActivityScreen from '../(pages)/auth/usr/FarmActivity';
 import ImageViewerScreen from '../(pages)/auth/usr/ImageViewer';
 import AccountSettingsScreen from '../(pages)/auth/usr/AccountSettings';
 import MapDetailsUpdate from '../(pages)/auth/usr/MapDetailsUpdate';
+import MapCoordinatesUpdate from '../(pages)/auth/usr/MapCoordinatesUpdate';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -84,6 +85,10 @@ function AuthenticatedUserStack() {
         <AuthenticatedUserFlowStack.Screen
           name="MapDetailsUpdate"
           component={MapDetailsUpdate}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="MapCoordinatesUpdate"
+          component={MapCoordinatesUpdate}
         />
       </AuthenticatedUserFlowStack.Navigator>
     </PointsProvider>
