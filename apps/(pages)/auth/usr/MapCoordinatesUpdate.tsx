@@ -562,20 +562,20 @@ const MapCoordinatesUpdate = () => {
     const newHectares = calculateAreaInHectares(points);
     const { province, region } = lookupAreaLocation(points);
 
+    console.log(`Points: ${points}`);
+    console.log(`Region: ${region}, Province: ${province}`);
+
     const updatedData = {
       Area_Name: areaData?.Area_Name,
-      Region: areaData?.Region,
-      Province: areaData?.Province,
-      Organization: areaData?.Organization,
+      Region: region,
+      Province: province,
       Hectares: newHectares.toFixed(4),
       coordinates: points,
-      geo_region: region,
-      geo_province: province,
     };
 
     try {
       const response = await axios.put(
-        `${API_URL}/area/${areaId}`,
+        `${API_URL}/area/${areaId}/coordinates`,
         updatedData,
         {
           headers: {
@@ -673,7 +673,7 @@ const MapCoordinatesUpdate = () => {
         </TouchableOpacity>
         <View style={localStyles.headerTitleContainer}>
           <Text style={localStyles.title} numberOfLines={1}>
-            Updating: **{areaData?.Area_Name || 'Area Coordinates'}**
+            Updating: {areaData?.Area_Name || 'Area Coordinates'}
           </Text>
         </View>
       </View>
