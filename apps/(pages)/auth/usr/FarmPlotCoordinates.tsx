@@ -36,6 +36,69 @@ import type {
 } from '../../../navigation/types';
 
 // ============================================================================
+// COORDINATE CONVERSION & VALIDATION
+// ============================================================================
+
+/**
+ * Safely converts BackendCoordinate to Coordinate with strict type validation.
+ * Ensures all values are numbers, not strings.
+ * Returns null if conversion fails.
+ */
+const convertBackendCoordinateToCoordinate = (
+  backendCoord: BackendCoordinate,
+): Coordinate | null => {
+  try {
+    let lat: number;
+    let lng: number;
+
+    // Convert latitude
+    if (typeof backendCoord.Latitude === 'string') {
+      lat = parseFloat(backendCoord.Latitude);
+    } else {
+      lat = backendCoord.Latitude;
+    }
+
+    // Convert longitude
+    if (typeof backendCoord.Longitude === 'string') {
+      lng = parseFloat(backendCoord.Longitude);
+    } else {
+      lng = backendCoord.Longitude;
+    }
+
+    // Strict validation - must be finite numbers
+    if (!isFinite(lat) || !isFinite(lng)) {
+      console.warn(
+        'Invalid coordinate values after conversion:',
+        { lat, lng },
+        'from:',
+        backendCoord,
+      );
+      return null;
+    }
+
+    return {
+      latitude: lat,
+      longitude: lng,
+    };
+  } catch (error) {
+    console.warn('Error converting backend coordinate:', backendCoord, error);
+    return null;
+  }
+};
+
+/**
+ * Converts array of BackendCoordinates to Coordinates.
+ * Filters out any invalid conversions.
+ */
+const convertBackendCoordinatesToCoordinates = (
+  backendCoords: BackendCoordinate[],
+): Coordinate[] => {
+  return backendCoords
+    .map((backendCoord) => convertBackendCoordinateToCoordinate(backendCoord))
+    .filter((coord): coord is Coordinate => coord !== null);
+};
+
+// ============================================================================
 // TURF.JS HELPER FUNCTIONS
 // ============================================================================
 
@@ -359,23 +422,110 @@ const FarmPlotCoordinates = () => {
     }
   };
 
+  const validateAndSnapCoordinate = (draggedCoord: Coordinate): Coordinate => {
+    // Convert area coordinates to Coordinate format for validation
+    let areaCoordinatesConverted: Coordinate[] = [];
+    if (areaData?.coordinates && areaData.coordinates.length > 0) {
+      areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+        areaData.coordinates,
+      );
+    }
+
+    let finalCoord = draggedCoord;
+
+    // Check if point is in area polygon, snap to boundary if outside
+    if (
+      areaCoordinatesConverted.length >= 3 &&
+      !isPointInPolygon(draggedCoord, areaCoordinatesConverted)
+    ) {
+      // Find the closest boundary segment to snap to
+      let closestSnapPoint: Coordinate | null = null;
+      let closestDistance = Infinity;
+
+      // Check each boundary segment
+      for (let i = 0; i < areaCoordinatesConverted.length; i++) {
+        const p1 = areaCoordinatesConverted[i];
+        const p2 =
+          areaCoordinatesConverted[(i + 1) % areaCoordinatesConverted.length];
+
+        // Ensure valid coordinates
+        const p1Lng =
+          typeof p1.longitude === 'string'
+            ? parseFloat(p1.longitude)
+            : p1.longitude;
+        const p1Lat =
+          typeof p1.latitude === 'string'
+            ? parseFloat(p1.latitude)
+            : p1.latitude;
+        const p2Lng =
+          typeof p2.longitude === 'string'
+            ? parseFloat(p2.longitude)
+            : p2.longitude;
+        const p2Lat =
+          typeof p2.latitude === 'string'
+            ? parseFloat(p2.latitude)
+            : p2.latitude;
+
+        if (
+          !isFinite(p1Lng) ||
+          !isFinite(p1Lat) ||
+          !isFinite(p2Lng) ||
+          !isFinite(p2Lat)
+        ) {
+          continue;
+        }
+
+        try {
+          // Create boundary segment line
+          const boundarySegment = turf.lineString([
+            [p1Lng, p1Lat],
+            [p2Lng, p2Lat],
+          ]);
+
+          // Find nearest point on this segment
+          const dragPoint = turf.point([
+            draggedCoord.longitude,
+            draggedCoord.latitude,
+          ]);
+          const nearest = turf.nearestPointOnLine(boundarySegment, dragPoint);
+          const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
+
+          // Track closest segment
+          if (distanceMeters < closestDistance) {
+            closestDistance = distanceMeters;
+            closestSnapPoint = {
+              latitude: nearest.geometry.coordinates[1],
+              longitude: nearest.geometry.coordinates[0],
+            };
+          }
+        } catch (error) {
+          console.warn(`Error snapping to boundary segment ${i}:`, error);
+          continue;
+        }
+      }
+
+      // Use the closest snapped point found
+      if (closestSnapPoint) {
+        finalCoord = closestSnapPoint;
+      } else {
+        console.warn(
+          'Could not snap to boundary. Using original coordinate.',
+          draggedCoord,
+        );
+      }
+    }
+
+    return finalCoord;
+  };
+
   const handleMapPress = (event: any) => {
     const newCoord: Coordinate = event.nativeEvent.coordinate;
 
     // Convert area coordinates to Coordinate format for validation
     let areaCoordinatesConverted: Coordinate[] = [];
     if (areaData?.coordinates && areaData.coordinates.length > 0) {
-      areaCoordinatesConverted = (areaData.coordinates as any).map(
-        (c: any) => ({
-          latitude:
-            typeof c.Latitude === 'string'
-              ? parseFloat(c.Latitude)
-              : c.Latitude,
-          longitude:
-            typeof c.Longitude === 'string'
-              ? parseFloat(c.Longitude)
-              : c.Longitude,
-        }),
+      areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+        areaData.coordinates,
       );
     }
 
@@ -386,42 +536,91 @@ const FarmPlotCoordinates = () => {
       areaCoordinatesConverted.length >= 3 &&
       !isPointInPolygon(newCoord, areaCoordinatesConverted)
     ) {
-      // Try to snap to nearest boundary point
-      let closestBoundaryPoint = areaCoordinatesConverted[0];
+      // Find the closest boundary segment to snap to
+      let closestSnapPoint: Coordinate | null = null;
       let closestDistance = Infinity;
 
-      for (const boundaryPoint of areaCoordinatesConverted) {
-        const dist = Math.sqrt(
-          Math.pow(boundaryPoint.latitude - newCoord.latitude, 2) +
-            Math.pow(boundaryPoint.longitude - newCoord.longitude, 2),
-        );
-        if (dist < closestDistance) {
-          closestDistance = dist;
-          closestBoundaryPoint = boundaryPoint;
+      // Check each boundary segment
+      for (let i = 0; i < areaCoordinatesConverted.length; i++) {
+        const p1 = areaCoordinatesConverted[i];
+        const p2 =
+          areaCoordinatesConverted[(i + 1) % areaCoordinatesConverted.length];
+
+        // Ensure valid coordinates
+        const p1Lng =
+          typeof p1.longitude === 'string'
+            ? parseFloat(p1.longitude)
+            : p1.longitude;
+        const p1Lat =
+          typeof p1.latitude === 'string'
+            ? parseFloat(p1.latitude)
+            : p1.latitude;
+        const p2Lng =
+          typeof p2.longitude === 'string'
+            ? parseFloat(p2.longitude)
+            : p2.longitude;
+        const p2Lat =
+          typeof p2.latitude === 'string'
+            ? parseFloat(p2.latitude)
+            : p2.latitude;
+
+        if (
+          !isFinite(p1Lng) ||
+          !isFinite(p1Lat) ||
+          !isFinite(p2Lng) ||
+          !isFinite(p2Lat)
+        ) {
+          continue;
+        }
+
+        try {
+          // Create boundary segment line
+          const boundarySegment = turf.lineString([
+            [p1Lng, p1Lat],
+            [p2Lng, p2Lat],
+          ]);
+
+          // Find nearest point on this segment
+          const tapPoint = turf.point([newCoord.longitude, newCoord.latitude]);
+          const nearest = turf.nearestPointOnLine(boundarySegment, tapPoint);
+          const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
+
+          // Track closest segment
+          if (distanceMeters < closestDistance) {
+            closestDistance = distanceMeters;
+            closestSnapPoint = {
+              latitude: nearest.geometry.coordinates[1],
+              longitude: nearest.geometry.coordinates[0],
+            };
+          }
+        } catch (error) {
+          console.warn(`Error snapping to boundary segment ${i}:`, error);
+          continue;
         }
       }
 
-      // Use the snapped point
-      finalCoord = closestBoundaryPoint;
+      // Use the closest snapped point found
+      if (closestSnapPoint) {
+        finalCoord = closestSnapPoint;
+      } else {
+        console.warn(
+          'Could not snap to boundary. Using original coordinate.',
+          newCoord,
+        );
+      }
     }
 
     // Check for overlap with existing farms
     for (const farm of farms) {
       if (farm.coordinates && farm.coordinates.length > 0) {
-        const farmCoordinatesConverted = (farm.coordinates as any).map(
-          (c: any) => ({
-            latitude:
-              typeof c.Latitude === 'string'
-                ? parseFloat(c.Latitude)
-                : c.Latitude,
-            longitude:
-              typeof c.Longitude === 'string'
-                ? parseFloat(c.Longitude)
-                : c.Longitude,
-          }),
+        const farmCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+          farm.coordinates,
         );
 
-        if (doPolygonsOverlap([finalCoord], farmCoordinatesConverted)) {
+        if (
+          farmCoordinatesConverted.length > 0 &&
+          doPolygonsOverlap([finalCoord], farmCoordinatesConverted)
+        ) {
           Alert.alert(
             'Overlaps with Farm',
             `This overlaps with an existing farm plot (${farm.Soil_Type || 'Unknown'}).`,
@@ -519,16 +718,8 @@ const FarmPlotCoordinates = () => {
       if (farmId && farmsList.length > 0) {
         const farmToEdit = farmsList.find((f) => f.Farm_ID === farmId);
         if (farmToEdit && farmToEdit.coordinates.length > 0) {
-          const farmCoords: Coordinate[] = farmToEdit.coordinates.map((bc) => ({
-            latitude:
-              typeof bc.Latitude === 'string'
-                ? parseFloat(bc.Latitude)
-                : bc.Latitude,
-            longitude:
-              typeof bc.Longitude === 'string'
-                ? parseFloat(bc.Longitude)
-                : bc.Longitude,
-          }));
+          const farmCoords: Coordinate[] =
+            convertBackendCoordinatesToCoordinates(farmToEdit.coordinates);
           setPoints(farmCoords);
           setIsComplete(true);
         }
@@ -555,22 +746,15 @@ const FarmPlotCoordinates = () => {
       areaData?.coordinates &&
       areaData.coordinates.length > 0
     ) {
-      const areaCoords: Coordinate[] = (areaData.coordinates || []).map(
-        (bc) => ({
-          latitude:
-            typeof bc.Latitude === 'string'
-              ? parseFloat(bc.Latitude)
-              : bc.Latitude,
-          longitude:
-            typeof bc.Longitude === 'string'
-              ? parseFloat(bc.Longitude)
-              : bc.Longitude,
-        }),
+      const areaCoords: Coordinate[] = convertBackendCoordinatesToCoordinates(
+        areaData.coordinates,
       );
-      mapRef.current.fitToCoordinates(areaCoords, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
+      if (areaCoords.length > 0) {
+        mapRef.current.fitToCoordinates(areaCoords, {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        });
+      }
     }
   }, [areaData]);
 
@@ -779,8 +963,14 @@ const FarmPlotCoordinates = () => {
         initialRegion={
           areaData?.coordinates && areaData.coordinates.length > 0
             ? {
-                latitude: (areaData.coordinates[0] as any).Latitude,
-                longitude: (areaData.coordinates[0] as any).Longitude,
+                latitude:
+                  typeof areaData.coordinates[0].Latitude === 'string'
+                    ? parseFloat(areaData.coordinates[0].Latitude)
+                    : areaData.coordinates[0].Latitude,
+                longitude:
+                  typeof areaData.coordinates[0].Longitude === 'string'
+                    ? parseFloat(areaData.coordinates[0].Longitude)
+                    : areaData.coordinates[0].Longitude,
                 latitudeDelta: 0.05,
                 longitudeDelta: 0.05,
               }
@@ -790,20 +980,9 @@ const FarmPlotCoordinates = () => {
         {/* Area boundary (blue) */}
         {areaData?.coordinates && areaData.coordinates.length > 1 && (
           <Polyline
-            coordinates={
-              (areaData.coordinates as any).map(
-                (c: { Latitude: string; Longitude: string }) => ({
-                  latitude:
-                    typeof c.Latitude === 'string'
-                      ? parseFloat(c.Latitude)
-                      : c.Latitude,
-                  longitude:
-                    typeof c.Longitude === 'string'
-                      ? parseFloat(c.Longitude)
-                      : c.Longitude,
-                }),
-              ) as any
-            }
+            coordinates={convertBackendCoordinatesToCoordinates(
+              areaData.coordinates,
+            )}
             strokeWidth={2}
             strokeColor="blue"
             lineDashPattern={[5, 5]}
@@ -811,55 +990,42 @@ const FarmPlotCoordinates = () => {
         )}
 
         {/* Existing farms (orange) */}
-        {farms.map((farm) => (
-          <View key={`farm-${farm.Farm_ID}`}>
-            {farm.coordinates && farm.coordinates.length > 1 && (
-              <Polyline
-                coordinates={
-                  farm.coordinates.map((c) => ({
-                    latitude:
-                      typeof c.Latitude === 'string'
-                        ? parseFloat(c.Latitude)
-                        : c.Latitude,
-                    longitude:
-                      typeof c.Longitude === 'string'
-                        ? parseFloat(c.Longitude)
-                        : c.Longitude,
-                  })) as any
-                }
-                strokeWidth={2}
-                strokeColor="orange"
-              />
-            )}
-            {farm.coordinates &&
-              farm.coordinates.map((coord, idx) => (
+        {farms.map((farm) => {
+          const farmCoordinates = convertBackendCoordinatesToCoordinates(
+            farm.coordinates,
+          );
+          return (
+            <View key={`farm-${farm.Farm_ID}`}>
+              {farmCoordinates.length > 1 && (
+                <Polyline
+                  coordinates={farmCoordinates}
+                  strokeWidth={2}
+                  strokeColor="orange"
+                />
+              )}
+              {farmCoordinates.map((coord, idx) => (
                 <Marker
                   key={`farm-marker-${farm.Farm_ID}-${idx}`}
-                  coordinate={{
-                    latitude:
-                      typeof coord.Latitude === 'string'
-                        ? parseFloat(coord.Latitude)
-                        : coord.Latitude,
-                    longitude:
-                      typeof coord.Longitude === 'string'
-                        ? parseFloat(coord.Longitude)
-                        : coord.Longitude,
-                  }}
+                  coordinate={coord}
                   pinColor="orange"
                   title={`Farm: ${farm.Soil_Type}`}
                 />
               ))}
-          </View>
-        ))}
+            </View>
+          );
+        })}
 
         {/* Current farm plot (red) */}
         {points.map((point, index) => (
           <Marker
             draggable
             onDrag={(e) => updatePoint(index, e.nativeEvent.coordinate)}
-            onDragEnd={(e) =>
-              savePointToHistory(index, e.nativeEvent.coordinate)
-            }
+            onDragEnd={(e) => {
+              const validatedCoord = validateAndSnapCoordinate(
+                e.nativeEvent.coordinate,
+              );
+              savePointToHistory(index, validatedCoord);
+            }}
             key={`marker-${index}`}
             coordinate={point}
             onPress={() => handleMarkerPress(index)}
