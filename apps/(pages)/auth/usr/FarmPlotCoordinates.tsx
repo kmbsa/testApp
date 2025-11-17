@@ -103,96 +103,6 @@ const convertBackendCoordinatesToCoordinates = (
 // ============================================================================
 
 /**
- * Finds which line segment the tap point is closest to.
- * Uses Turf.js nearestPointOnLine for accurate detection.
- * Returns the segment for insertion if within tolerance.
- */
-const findSegmentAtTap = (
-  tapCoord: Coordinate,
-  points: Coordinate[],
-  toleranceInMeters: number = 50,
-): {
-  insertionIndex: number;
-  segmentIndex: number;
-  distance: number;
-} | null => {
-  if (points.length < 2) return null;
-
-  const tapLng =
-    typeof tapCoord.longitude === 'string'
-      ? parseFloat(tapCoord.longitude)
-      : tapCoord.longitude;
-  const tapLat =
-    typeof tapCoord.latitude === 'string'
-      ? parseFloat(tapCoord.latitude)
-      : tapCoord.latitude;
-
-  if (!isFinite(tapLng) || !isFinite(tapLat)) {
-    console.warn('Invalid tap coordinate:', tapCoord);
-    return null;
-  }
-
-  let closestSegmentIndex = -1;
-  let closestDistance = Infinity;
-
-  for (let i = 0; i < points.length; i++) {
-    const p1 = points[i];
-    const p2 = points[(i + 1) % points.length];
-
-    const p1Lng =
-      typeof p1.longitude === 'string'
-        ? parseFloat(p1.longitude)
-        : p1.longitude;
-    const p1Lat =
-      typeof p1.latitude === 'string' ? parseFloat(p1.latitude) : p1.latitude;
-    const p2Lng =
-      typeof p2.longitude === 'string'
-        ? parseFloat(p2.longitude)
-        : p2.longitude;
-    const p2Lat =
-      typeof p2.latitude === 'string' ? parseFloat(p2.latitude) : p2.latitude;
-
-    if (
-      !isFinite(p1Lng) ||
-      !isFinite(p1Lat) ||
-      !isFinite(p2Lng) ||
-      !isFinite(p2Lat)
-    ) {
-      continue;
-    }
-
-    try {
-      const line = turf.lineString([
-        [p1Lng, p1Lat],
-        [p2Lng, p2Lat],
-      ]);
-
-      const tapPoint = turf.point([tapLng, tapLat]);
-      const nearest = turf.nearestPointOnLine(line, tapPoint);
-      const distanceMeters = nearest.properties.dist * 1000;
-
-      if (distanceMeters < closestDistance) {
-        closestDistance = distanceMeters;
-        closestSegmentIndex = i;
-      }
-    } catch (error) {
-      console.warn(`Error processing segment ${i}:`, error);
-      continue;
-    }
-  }
-
-  if (closestDistance <= toleranceInMeters && closestSegmentIndex !== -1) {
-    return {
-      segmentIndex: closestSegmentIndex,
-      insertionIndex: closestSegmentIndex + 1,
-      distance: closestDistance,
-    };
-  }
-
-  return null;
-};
-
-/**
  * Checks if the tap is near an existing marker (within 10 meters).
  */
 const isTapNearExistingMarker = (
@@ -635,23 +545,78 @@ const FarmPlotCoordinates = () => {
       return;
     }
 
-    // Check if tap is on a polyline segment
-    if (points.length >= 2) {
-      const SEGMENT_TOLERANCE_METERS = 50;
-      const segmentData = findSegmentAtTap(
-        finalCoord,
-        points,
-        SEGMENT_TOLERANCE_METERS,
-      );
+    // For first 2 points, append freely to start the polygon
+    if (points.length < 2) {
+      handleStateChange([...points, finalCoord]);
+      return;
+    }
 
-      if (segmentData) {
-        insertPoint(finalCoord, segmentData.insertionIndex);
+    // For 2+ points, find the nearest segment and insert on it
+    // This ensures the polygon grows properly without self-intersections
+    if (points.length >= 2) {
+      // Find the closest segment (without strict tolerance limit)
+      let closestSegmentIndex = -1;
+      let closestDistance = Infinity;
+
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+
+        const p1Lng =
+          typeof p1.longitude === 'string'
+            ? parseFloat(p1.longitude)
+            : p1.longitude;
+        const p1Lat =
+          typeof p1.latitude === 'string'
+            ? parseFloat(p1.latitude)
+            : p1.latitude;
+        const p2Lng =
+          typeof p2.longitude === 'string'
+            ? parseFloat(p2.longitude)
+            : p2.longitude;
+        const p2Lat =
+          typeof p2.latitude === 'string'
+            ? parseFloat(p2.latitude)
+            : p2.latitude;
+
+        if (
+          !isFinite(p1Lng) ||
+          !isFinite(p1Lat) ||
+          !isFinite(p2Lng) ||
+          !isFinite(p2Lat)
+        ) {
+          continue;
+        }
+
+        try {
+          const segmentLine = turf.lineString([
+            [p1Lng, p1Lat],
+            [p2Lng, p2Lat],
+          ]);
+          const tapPoint = turf.point([
+            finalCoord.longitude,
+            finalCoord.latitude,
+          ]);
+          const nearest = turf.nearestPointOnLine(segmentLine, tapPoint);
+          const distanceMeters = nearest.properties.dist * 1000;
+
+          if (distanceMeters < closestDistance) {
+            closestDistance = distanceMeters;
+            closestSegmentIndex = i;
+          }
+        } catch (error) {
+          console.warn(`Error finding closest segment ${i}:`, error);
+          continue;
+        }
+      }
+
+      // Insert the marker at the tapped location (finalCoord), not the snap point
+      // This breaks the nearest segment and inserts the marker between its endpoints
+      if (closestSegmentIndex !== -1) {
+        insertPoint(finalCoord, closestSegmentIndex + 1);
         return;
       }
     }
-
-    // If no polyline found, append the point
-    handleStateChange([...points, finalCoord]);
   };
 
   const handleMarkerPress = (index: number) => {
