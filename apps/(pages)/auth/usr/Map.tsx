@@ -1004,8 +1004,19 @@ export default function Map() {
       }}
       disabled={isSubmitting}
     >
-      <View style={{ justifyContent: 'center' }}>
-        <Text style={[Styles.text, { color: '#555', textAlign: 'center' }]}>
+      <View
+        style={{
+          justifyContent: 'center',
+          alignItems: 'center',
+          borderWidth: 1,
+          borderColor: '#F4D03F',
+          borderRadius: 8,
+          paddingVertical: 12,
+          paddingHorizontal: 15,
+          opacity: 1,
+        }}
+      >
+        <Text style={[{ color: '#F4D03F', textAlign: 'center', fontSize: 18 }]}>
           Cancel
         </Text>
       </View>

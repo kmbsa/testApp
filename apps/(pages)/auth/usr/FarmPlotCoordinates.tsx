@@ -7,6 +7,12 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Modal,
+  TouchableWithoutFeedback,
+  Keyboard,
+  TextInput,
+  PanResponder,
+  Animated,
 } from 'react-native';
 import React, {
   useState,
@@ -28,6 +34,9 @@ import type { Position } from 'geojson';
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
+import FormDropdown from '../../../components/FormDropdown';
+import { SoilTypeData } from '../../../../assets/data/SoilType';
+import { SoilSuitabilityData } from '../../../../assets/data/SoilSuitability';
 import type {
   FarmPlotCoordinatesProps,
   Coordinate,
@@ -264,6 +273,47 @@ const FarmPlotCoordinates = () => {
 
   const [isComplete, setIsComplete] = useState(true);
 
+  // Modal and form state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [soilType, setSoilType] = useState<string>('');
+  const [soilSuitability, setSoilSuitability] = useState<string>('');
+  const [hectares, setHectares] = useState<string>('0.00');
+
+  // Pan responder for draggable modal
+  const panY = useRef(new Animated.Value(0)).current;
+  const initialModalHeight = useRef(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (event, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (event, gestureState) => {
+        if (
+          gestureState.dy > initialModalHeight.current * 0.3 ||
+          gestureState.vy > 0.5
+        ) {
+          Animated.timing(panY, {
+            toValue: initialModalHeight.current,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            setModalVisible(false);
+            panY.setValue(0);
+          });
+        } else {
+          Animated.spring(panY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
   const handleStateChange = (newPoints: Coordinate[]) => {
     setUndoStack((prev) => [points, ...prev]);
     setRedoStack([]);
@@ -331,6 +381,50 @@ const FarmPlotCoordinates = () => {
       setIsComplete(true);
     }
   };
+
+  /**
+   * Calculate hectares from polygon area using Turf.js
+   * Returns area in hectares with 2 decimal places
+   */
+  const calculateHectares = useCallback((coords: Coordinate[]): string => {
+    if (coords.length < 3) return '0.00';
+
+    try {
+      // Convert to turf polygon format
+      let polygonCoords: Position[] = coords.map((p) => [
+        typeof p.longitude === 'string' ? parseFloat(p.longitude) : p.longitude,
+        typeof p.latitude === 'string' ? parseFloat(p.latitude) : p.latitude,
+      ]);
+
+      // Close the polygon
+      if (
+        polygonCoords.length > 0 &&
+        (polygonCoords[0][0] !== polygonCoords[polygonCoords.length - 1][0] ||
+          polygonCoords[0][1] !== polygonCoords[polygonCoords.length - 1][1])
+      ) {
+        polygonCoords.push(polygonCoords[0]);
+      }
+
+      const polygon = turf.polygon([polygonCoords]);
+      const areaSquareMeters = turf.area(polygon); // Returns area in square meters
+      const areaHectares = areaSquareMeters / 10000; // Convert to hectares
+
+      return areaHectares.toFixed(2);
+    } catch (error) {
+      console.warn('Error calculating hectares:', error);
+      return '0.00';
+    }
+  }, []);
+
+  // Update hectares when points change
+  useEffect(() => {
+    if (points.length >= 3) {
+      const newHectares = calculateHectares(points);
+      setHectares(newHectares);
+    } else {
+      setHectares('0.00');
+    }
+  }, [points, calculateHectares]);
 
   const validateAndSnapCoordinate = (draggedCoord: Coordinate): Coordinate => {
     // Convert area coordinates to Coordinate format for validation
@@ -737,19 +831,8 @@ const FarmPlotCoordinates = () => {
       return;
     }
 
-    Alert.alert(
-      'Confirm Farm Plot',
-      'Are you sure you want to save this farm plot?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save Farm Plot',
-          onPress: handleSubmitUpdate,
-          style: 'default',
-        },
-      ],
-      { cancelable: true },
-    );
+    // Open modal to collect farm details
+    setModalVisible(true);
   };
 
   const handleSubmitUpdate = async () => {
@@ -760,35 +843,45 @@ const FarmPlotCoordinates = () => {
       return;
     }
 
+    if (!soilType) {
+      Alert.alert('Missing Field', 'Please select a soil type.');
+      return;
+    }
+
+    if (!soilSuitability) {
+      Alert.alert('Missing Field', 'Please select soil suitability.');
+      return;
+    }
+
     setIsUpdating(true);
     setError(null);
 
     try {
+      const farmData = {
+        coordinates: points,
+        Soil_Type: soilType,
+        Soil_Suitability: soilSuitability,
+        Hectares: hectares,
+        Status: farmId ? 'Inactive' : 'Inactive', // Always Inactive on creation/update
+      };
+
       // If editing existing farm
       if (farmId) {
-        await axios.put(
-          `${API_URL}/area/${areaId}/farm/${farmId}`,
-          { coordinates: points },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${userToken}`,
-            },
+        await axios.put(`${API_URL}/area/${areaId}/farm/${farmId}`, farmData, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${userToken}`,
           },
-        );
+        });
         Alert.alert('Success', 'Farm plot updated successfully!');
       } else {
-        // Creating new farm - this endpoint may need to be created on backend
-        await axios.post(
-          `${API_URL}/area/${areaId}/farm`,
-          { coordinates: points },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${userToken}`,
-            },
+        // Creating new farm
+        await axios.post(`${API_URL}/area/${areaId}/farm`, farmData, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${userToken}`,
           },
-        );
+        });
         Alert.alert('Success', 'Farm plot created successfully!');
       }
 
@@ -1069,24 +1162,151 @@ const FarmPlotCoordinates = () => {
         </View>
       </View>
 
+      {/* --- FARM DETAILS MODAL --- */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Animated.View
+              style={[
+                Styles.formBox,
+                {
+                  width: '100%',
+                  minHeight: '60%',
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 20,
+                  transform: [{ translateY: panY }],
+                },
+              ]}
+              onLayout={(event) => {
+                if (initialModalHeight.current === 0) {
+                  initialModalHeight.current = event.nativeEvent.layout.height;
+                }
+              }}
+            >
+              {/* Draggable indicator/header */}
+              <View
+                style={localStyles.modalHandle}
+                {...panResponder.panHandlers}
+              >
+                <View style={localStyles.modalHandleBar} />
+              </View>
+
+              {/* Title Header */}
+              <View style={localStyles.modalHeader}>
+                <Text style={localStyles.modalTitle}>Farm Details</Text>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  style={localStyles.closeButton}
+                >
+                  <Ionicons
+                    name="chevron-down"
+                    size={28}
+                    color={Styles.buttonText.color}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                style={localStyles.formContainer}
+              >
+                {/* Hectares Display */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Hectares</Text>
+                  <TextInput
+                    style={[
+                      Styles.inputFields,
+                      { marginBottom: 15, width: '100%' },
+                    ]}
+                    value={`${hectares} ha`}
+                    editable={false}
+                    placeholderTextColor="#8b8b8bff"
+                  />
+                </View>
+
+                {/* Soil Type Dropdown */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Soil Type</Text>
+                  <FormDropdown
+                    data={SoilTypeData}
+                    value={soilType}
+                    onValueChange={setSoilType}
+                    placeholder="Select soil type"
+                  />
+                </View>
+
+                {/* Soil Suitability Dropdown */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Soil Suitability</Text>
+                  <FormDropdown
+                    data={SoilSuitabilityData}
+                    value={soilSuitability}
+                    onValueChange={setSoilSuitability}
+                    placeholder="Select suitability"
+                  />
+                </View>
+              </ScrollView>
+
+              {/* Modal Buttons */}
+              <View style={localStyles.buttonContainer}>
+                <TouchableOpacity
+                  style={[
+                    Styles.button,
+                    localStyles.submitButton,
+                    {
+                      opacity:
+                        soilType && soilSuitability && !isUpdating ? 1 : 0.5,
+                    },
+                  ]}
+                  onPress={handleSubmitUpdate}
+                  disabled={!soilType || !soilSuitability || isUpdating}
+                >
+                  {isUpdating ? (
+                    <ActivityIndicator color={Styles.buttonText.color} />
+                  ) : (
+                    <Text style={Styles.buttonText}>
+                      {farmId ? 'Update Farm' : 'Create Farm'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={localStyles.cancelButton}
+                  onPress={() => setModalVisible(false)}
+                  disabled={isUpdating}
+                >
+                  <Text style={localStyles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* --- SAVE BUTTON --- */}
       <TouchableOpacity
         style={[
           Styles.button,
           localStyles.updateButton,
           {
-            opacity:
-              points.length >= 3 && hasUnsavedChanges && !isUpdating ? 1 : 0.5,
+            opacity: points.length >= 3 && !isUpdating ? 1 : 0.5,
           },
         ]}
         onPress={handleConfirmUpdate}
-        disabled={points.length < 3 || isUpdating || !hasUnsavedChanges}
+        disabled={points.length < 3 || isUpdating}
       >
         {isUpdating ? (
           <ActivityIndicator color={Styles.buttonText.color} />
         ) : (
           <Text style={Styles.buttonText}>
-            {farmId ? 'Save Farm Plot' : 'Create Farm Plot'}
+            {farmId ? 'Edit Farm Plot' : 'Save Farm Plot'}
           </Text>
         )}
       </TouchableOpacity>
@@ -1161,7 +1381,7 @@ const localStyles = StyleSheet.create({
   },
   farmCardTitle: {
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 18,
     marginBottom: 5,
     color: Styles.text.color,
   },
@@ -1192,6 +1412,94 @@ const localStyles = StyleSheet.create({
     marginTop: 0,
     alignSelf: 'center',
     zIndex: 1,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#3D550C',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#555',
+    position: 'relative',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F4D03F',
+    textAlign: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 0,
+    padding: 5,
+  },
+  formContainer: {
+    marginBottom: 20,
+  },
+  formGroup: {
+    marginBottom: 18,
+  },
+  label: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#F4D03F',
+    marginBottom: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#555',
+  },
+  cancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F4D03F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#F4D03F',
+  },
+  submitButton: {
+    marginTop: 0,
+    width: '100%',
+  },
+  modalHandle: {
+    width: '100%',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  modalHandleBar: {
+    width: 40,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: '#ccc',
   },
 });
 

@@ -766,7 +766,7 @@ const localStyles = StyleSheet.create({
     color: Styles.text.color,
   },
   modalText: {
-    fontSize: 16,
+    fontSize: 18,
     color: Styles.text.color,
     marginBottom: 10,
   },
