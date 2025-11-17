@@ -613,6 +613,17 @@ export default function AreaDetailsScreen() {
                     Go to Farm Activity Input
                   </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[Styles.button, localStyles.farmActivityButton]}
+                  onPress={() => {
+                    navigation.navigate('FarmPlotCoordinates', {
+                      areaId: areaData.Area_ID,
+                    });
+                    setModalVisible(false);
+                  }}
+                >
+                  <Text style={Styles.buttonText}>Add Farm</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Weather Section */}

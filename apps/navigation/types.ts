@@ -21,6 +21,16 @@ export type Photo = {
   filename: string;
 };
 
+export type farmPlot = {
+  Farm_Plot_ID: number;
+  Area_ID: number;
+  Soil_Type: string;
+  Hectares: string;
+  Suitability: string;
+  created_at: string;
+  coordinates: BackendCoordinate[];
+};
+
 export type AreaEntry = {
   Area_ID: number;
   User_ID: number;
@@ -29,12 +39,11 @@ export type AreaEntry = {
   Province: string;
   Organization: string;
   topography: topography[];
-  Soil_Type: string;
   Hectares: string;
-  Suitability: string;
   created_at: string;
   coordinates: BackendCoordinate[];
   images: BackendPhoto[];
+  farm?: farmPlot[];
 };
 
 export type BackendCoordinate = {
@@ -61,6 +70,7 @@ export type RootStackParamList = {
   MapPreview: { areaId: number } | undefined;
   MapDetailsUpdate: { areaId: number } | undefined;
   MapCoordinatesUpdate: { areaId: number } | undefined;
+  FarmPlotCoordinates: { areaId: number; farmId?: number } | undefined;
   ImageViewerScreen:
     | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
     | undefined;
@@ -115,6 +125,10 @@ export type MapDetailsUpdateProps = NativeStackScreenProps<
 export type MapCoordinatesUpdateProps = NativeStackScreenProps<
   RootStackParamList,
   'MapCoordinatesUpdate'
+>;
+export type FarmPlotCoordinatesProps = NativeStackScreenProps<
+  RootStackParamList,
+  'FarmPlotCoordinates'
 >;
 export type ImageViewerProps = NativeStackScreenProps<
   RootStackParamList,
