@@ -242,6 +242,107 @@ const doPolygonsOverlap = (
   }
 };
 
+/**
+ * Checks if a polygon is completely within a boundary polygon
+ * All vertices of the polygon must be inside the boundary
+ */
+const isPolygonWithinBoundary = (
+  polygon: Coordinate[],
+  boundary: Coordinate[],
+): boolean => {
+  try {
+    if (polygon.length < 3 || boundary.length < 3) return false;
+
+    // Check if all points of the polygon are inside the boundary
+    for (const point of polygon) {
+      if (!isPointInPolygon(point, boundary)) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('Error checking if polygon is within boundary:', error);
+    return false;
+  }
+};
+
+/**
+ * Find which boundary segment of a polygon a point is closest to
+ * Returns the segment index and the snapped coordinate on that boundary
+ */
+const findClosestBoundarySegment = (
+  point: Coordinate,
+  polygon: Coordinate[],
+): { segmentIndex: number; snappedPoint: Coordinate } | null => {
+  try {
+    let closestSegmentIndex = -1;
+    let closestSnappedPoint: Coordinate | null = null;
+    let closestDistance = Infinity;
+
+    for (let i = 0; i < polygon.length; i++) {
+      const p1 = polygon[i];
+      const p2 = polygon[(i + 1) % polygon.length];
+
+      const p1Lng =
+        typeof p1.longitude === 'string'
+          ? parseFloat(p1.longitude)
+          : p1.longitude;
+      const p1Lat =
+        typeof p1.latitude === 'string' ? parseFloat(p1.latitude) : p1.latitude;
+      const p2Lng =
+        typeof p2.longitude === 'string'
+          ? parseFloat(p2.longitude)
+          : p2.longitude;
+      const p2Lat =
+        typeof p2.latitude === 'string' ? parseFloat(p2.latitude) : p2.latitude;
+
+      if (
+        !isFinite(p1Lng) ||
+        !isFinite(p1Lat) ||
+        !isFinite(p2Lng) ||
+        !isFinite(p2Lat)
+      ) {
+        continue;
+      }
+
+      try {
+        const boundarySegment = turf.lineString([
+          [p1Lng, p1Lat],
+          [p2Lng, p2Lat],
+        ]);
+        const dragPoint = turf.point([point.longitude, point.latitude]);
+        const nearest = turf.nearestPointOnLine(boundarySegment, dragPoint);
+        const distanceMeters = nearest.properties.dist * 1000;
+
+        if (distanceMeters < closestDistance) {
+          closestDistance = distanceMeters;
+          closestSegmentIndex = i;
+          closestSnappedPoint = {
+            latitude: nearest.geometry.coordinates[1],
+            longitude: nearest.geometry.coordinates[0],
+          };
+        }
+      } catch (error) {
+        console.warn(`Error finding closest segment ${i}:`, error);
+        continue;
+      }
+    }
+
+    if (closestSegmentIndex !== -1 && closestSnappedPoint) {
+      return {
+        segmentIndex: closestSegmentIndex,
+        snappedPoint: closestSnappedPoint,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('Error in findClosestBoundarySegment:', error);
+    return null;
+  }
+};
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -282,6 +383,24 @@ const FarmPlotCoordinates = () => {
   const [soilType, setSoilType] = useState<string>('');
   const [soilSuitability, setSoilSuitability] = useState<string>('');
   const [hectares, setHectares] = useState<string>('0.00');
+
+  // Farm details and edit mode state
+  const [selectedFarmId, setSelectedFarmId] = useState<number | null>(null);
+  const [farmDetailsVisible, setFarmDetailsVisible] = useState(false);
+  const [isEditingCoordinates, setIsEditingCoordinates] = useState(false);
+  const [editingFarmCoordinates, setEditingFarmCoordinates] = useState<
+    Coordinate[]
+  >([]);
+  const [editingUndoStack, setEditingUndoStack] = useState<Coordinate[][]>([]);
+  const [editingRedoStack, setEditingRedoStack] = useState<Coordinate[][]>([]);
+  const [isEditingFarmData, setIsEditingFarmData] = useState(false);
+  const [originalEditingCoordinates, setOriginalEditingCoordinates] = useState<
+    Coordinate[]
+  >([]);
+  const [isInsertingCoordinates, setIsInsertingCoordinates] = useState(false);
+
+  // New farm creation mode (distinct from edit mode)
+  const [isCreatingNewFarmPlot, setIsCreatingNewFarmPlot] = useState(false);
 
   // Pan responder for draggable modal
   const panY = useRef(new Animated.Value(0)).current;
@@ -348,6 +467,37 @@ const FarmPlotCoordinates = () => {
     handleStateChange(points.map((p, i) => (i === index ? newCoord : p)));
   };
 
+  /**
+   * Update editing farm coordinates with undo/redo history
+   */
+  const handleEditingStateChange = (newCoords: Coordinate[]) => {
+    setEditingUndoStack((prev) => [editingFarmCoordinates, ...prev]);
+    setEditingRedoStack([]);
+    setEditingFarmCoordinates(newCoords);
+  };
+
+  /**
+   * Undo the last change in editing farm coordinates
+   */
+  const undoEditingPoint = () => {
+    if (editingUndoStack.length === 0) return;
+    const previousCoords = editingUndoStack[0];
+    setEditingRedoStack((prev) => [editingFarmCoordinates, ...prev]);
+    setEditingUndoStack((prev) => prev.slice(1));
+    setEditingFarmCoordinates(previousCoords);
+  };
+
+  /**
+   * Redo the last change in editing farm coordinates
+   */
+  const redoEditingPoint = () => {
+    if (editingRedoStack.length === 0) return;
+    const nextCoords = editingRedoStack[0];
+    setEditingUndoStack((prev) => [editingFarmCoordinates, ...prev]);
+    setEditingRedoStack((prev) => prev.slice(1));
+    setEditingFarmCoordinates(nextCoords);
+  };
+
   const deletePoint = (index: number) => {
     Alert.alert(
       'Delete Point',
@@ -384,6 +534,22 @@ const FarmPlotCoordinates = () => {
     if (newPoints.length >= 3 && !isComplete) {
       setIsComplete(true);
     }
+  };
+
+  /**
+   * Insert point into editing farm coordinates with proper segment insertion
+   * Used for inserting markers when editing existing farm coordinates
+   */
+  const insertEditingFarmPoint = (
+    newCoord: Coordinate,
+    insertionIndex: number,
+  ) => {
+    const newCoordinates = [
+      ...editingFarmCoordinates.slice(0, insertionIndex),
+      newCoord,
+      ...editingFarmCoordinates.slice(insertionIndex),
+    ];
+    handleEditingStateChange(newCoordinates);
   };
 
   /**
@@ -526,193 +692,449 @@ const FarmPlotCoordinates = () => {
     return finalCoord;
   };
 
+  /**
+   * Check which farm polygon was tapped
+   * Returns the Farm_ID if a tap is inside a farm polygon, null otherwise
+   */
+  const getFarmAtTapPoint = (tapCoord: Coordinate): number | null => {
+    for (const farm of farms) {
+      if (farm.coordinates && farm.coordinates.length >= 3) {
+        const farmCoordinates = convertBackendCoordinatesToCoordinates(
+          farm.coordinates,
+        );
+        if (
+          farmCoordinates.length >= 3 &&
+          isPointInPolygon(tapCoord, farmCoordinates)
+        ) {
+          return farm.Farm_ID;
+        }
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Open farm details when user taps inside a farm polygon
+   */
+  const handleFarmTap = (farmId: number) => {
+    const farm = farms.find((f) => f.Farm_ID === farmId);
+    if (farm) {
+      setSelectedFarmId(farmId);
+      setSoilType(farm.Soil_Type);
+      setSoilSuitability(farm.Soil_Suitability);
+      setHectares(farm.Hectares);
+      const farmCoordinates = convertBackendCoordinatesToCoordinates(
+        farm.coordinates,
+      );
+      setEditingFarmCoordinates(farmCoordinates);
+      setFarmDetailsVisible(true);
+    }
+  };
+
   const handleMapPress = (event: any) => {
     const newCoord: Coordinate = event.nativeEvent.coordinate;
 
-    // Convert area coordinates to Coordinate format for validation
-    let areaCoordinatesConverted: Coordinate[] = [];
-    if (areaData?.coordinates && areaData.coordinates.length > 0) {
-      areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
-        areaData.coordinates,
-      );
-    }
+    // If in coordinate editing mode AND inserting mode, add/move markers
+    if (isEditingCoordinates && selectedFarmId && isInsertingCoordinates) {
+      // Convert area coordinates to Coordinate format for validation
+      let areaCoordinatesConverted: Coordinate[] = [];
+      if (areaData?.coordinates && areaData.coordinates.length > 0) {
+        areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+          areaData.coordinates,
+        );
+      }
 
-    let finalCoord = newCoord;
+      let finalCoord = newCoord;
 
-    // Check if point is in area polygon, snap to boundary if outside
-    if (
-      areaCoordinatesConverted.length >= 3 &&
-      !isPointInPolygon(newCoord, areaCoordinatesConverted)
-    ) {
-      // Find the closest boundary segment to snap to
-      let closestSnapPoint: Coordinate | null = null;
-      let closestDistance = Infinity;
+      // Check if point is in area polygon, snap to boundary if outside
+      if (
+        areaCoordinatesConverted.length >= 3 &&
+        !isPointInPolygon(newCoord, areaCoordinatesConverted)
+      ) {
+        // Find the closest boundary segment to snap to
+        let closestSnapPoint: Coordinate | null = null;
+        let closestDistance = Infinity;
 
-      // Check each boundary segment
-      for (let i = 0; i < areaCoordinatesConverted.length; i++) {
-        const p1 = areaCoordinatesConverted[i];
-        const p2 =
-          areaCoordinatesConverted[(i + 1) % areaCoordinatesConverted.length];
+        // Check each boundary segment
+        for (let i = 0; i < areaCoordinatesConverted.length; i++) {
+          const p1 = areaCoordinatesConverted[i];
+          const p2 =
+            areaCoordinatesConverted[(i + 1) % areaCoordinatesConverted.length];
 
-        // Ensure valid coordinates
-        const p1Lng =
-          typeof p1.longitude === 'string'
-            ? parseFloat(p1.longitude)
-            : p1.longitude;
-        const p1Lat =
-          typeof p1.latitude === 'string'
-            ? parseFloat(p1.latitude)
-            : p1.latitude;
-        const p2Lng =
-          typeof p2.longitude === 'string'
-            ? parseFloat(p2.longitude)
-            : p2.longitude;
-        const p2Lat =
-          typeof p2.latitude === 'string'
-            ? parseFloat(p2.latitude)
-            : p2.latitude;
+          // Ensure valid coordinates
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
 
-        if (
-          !isFinite(p1Lng) ||
-          !isFinite(p1Lat) ||
-          !isFinite(p2Lng) ||
-          !isFinite(p2Lat)
-        ) {
-          continue;
-        }
-
-        try {
-          // Create boundary segment line
-          const boundarySegment = turf.lineString([
-            [p1Lng, p1Lat],
-            [p2Lng, p2Lat],
-          ]);
-
-          // Find nearest point on this segment
-          const tapPoint = turf.point([newCoord.longitude, newCoord.latitude]);
-          const nearest = turf.nearestPointOnLine(boundarySegment, tapPoint);
-          const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
-
-          // Track closest segment
-          if (distanceMeters < closestDistance) {
-            closestDistance = distanceMeters;
-            closestSnapPoint = {
-              latitude: nearest.geometry.coordinates[1],
-              longitude: nearest.geometry.coordinates[0],
-            };
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
           }
-        } catch (error) {
-          console.warn(`Error snapping to boundary segment ${i}:`, error);
-          continue;
+
+          try {
+            // Create boundary segment line
+            const boundarySegment = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+
+            // Find nearest point on this segment
+            const tapPoint = turf.point([
+              newCoord.longitude,
+              newCoord.latitude,
+            ]);
+            const nearest = turf.nearestPointOnLine(boundarySegment, tapPoint);
+            const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
+
+            // Track closest segment
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSnapPoint = {
+                latitude: nearest.geometry.coordinates[1],
+                longitude: nearest.geometry.coordinates[0],
+              };
+            }
+          } catch (error) {
+            console.warn(`Error snapping to boundary segment ${i}:`, error);
+            continue;
+          }
+        }
+
+        // Use the closest snapped point found
+        if (closestSnapPoint) {
+          finalCoord = closestSnapPoint;
+        } else {
+          console.warn(
+            'Could not snap to boundary. Using original coordinate.',
+            newCoord,
+          );
         }
       }
 
-      // Use the closest snapped point found
-      if (closestSnapPoint) {
-        finalCoord = closestSnapPoint;
-      } else {
-        console.warn(
-          'Could not snap to boundary. Using original coordinate.',
-          newCoord,
-        );
+      // Check for overlap with existing farms (excluding the one being edited)
+      for (const farm of farms) {
+        if (farm.Farm_ID === selectedFarmId) {
+          continue; // Skip the farm being edited
+        }
+
+        if (farm.coordinates && farm.coordinates.length > 0) {
+          const farmCoordinatesConverted =
+            convertBackendCoordinatesToCoordinates(farm.coordinates);
+
+          if (
+            farmCoordinatesConverted.length > 0 &&
+            doPolygonsOverlap([finalCoord], farmCoordinatesConverted)
+          ) {
+            Alert.alert(
+              'Overlaps with Farm',
+              `This overlaps with an existing farm plot (${farm.Soil_Type || 'Unknown'}).`,
+            );
+            return;
+          }
+        }
       }
-    }
 
-    // Check for overlap with existing farms
-    for (const farm of farms) {
-      if (farm.coordinates && farm.coordinates.length > 0) {
-        const farmCoordinatesConverted = convertBackendCoordinatesToCoordinates(
-          farm.coordinates,
-        );
+      // For first 2 points, append freely to start the polygon
+      if (editingFarmCoordinates.length < 2) {
+        setEditingFarmCoordinates([...editingFarmCoordinates, finalCoord]);
+        return;
+      }
 
-        if (
-          farmCoordinatesConverted.length > 0 &&
-          doPolygonsOverlap([finalCoord], farmCoordinatesConverted)
-        ) {
-          Alert.alert(
-            'Overlaps with Farm',
-            `This overlaps with an existing farm plot (${farm.Soil_Type || 'Unknown'}).`,
-          );
+      // For 2+ points, find the nearest segment and insert on it
+      // This ensures the polygon grows properly without self-intersections
+      if (editingFarmCoordinates.length >= 2) {
+        // Find the closest segment (without strict tolerance limit)
+        let closestSegmentIndex = -1;
+        let closestDistance = Infinity;
+
+        for (let i = 0; i < editingFarmCoordinates.length; i++) {
+          const p1 = editingFarmCoordinates[i];
+          const p2 =
+            editingFarmCoordinates[(i + 1) % editingFarmCoordinates.length];
+
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
+
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
+          }
+
+          try {
+            const segmentLine = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+            const tapPoint = turf.point([
+              finalCoord.longitude,
+              finalCoord.latitude,
+            ]);
+            const nearest = turf.nearestPointOnLine(segmentLine, tapPoint);
+            const distanceMeters = nearest.properties.dist * 1000;
+
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSegmentIndex = i;
+            }
+          } catch (error) {
+            console.warn(`Error finding closest segment ${i}:`, error);
+            continue;
+          }
+        }
+
+        // Insert the marker at the tapped location (finalCoord), not the snap point
+        // This breaks the nearest segment and inserts the marker between its endpoints
+        if (closestSegmentIndex !== -1) {
+          insertEditingFarmPoint(finalCoord, closestSegmentIndex + 1);
           return;
         }
       }
-    }
 
-    // Conflict resolution: If tap is near a marker, let marker handler deal with it
-    if (isTapNearExistingMarker(finalCoord, points)) {
       return;
     }
 
-    // For first 2 points, append freely to start the polygon
-    if (points.length < 2) {
-      handleStateChange([...points, finalCoord]);
-      return;
+    // Check if tap is inside any farm polygon (only if not editing and not creating new)
+    if (
+      !isEditingCoordinates &&
+      !isCreatingNewFarmPlot &&
+      !isInsertingCoordinates
+    ) {
+      const tappedFarmId = getFarmAtTapPoint(newCoord);
+      if (tappedFarmId) {
+        handleFarmTap(tappedFarmId);
+        return;
+      }
     }
 
-    // For 2+ points, find the nearest segment and insert on it
-    // This ensures the polygon grows properly without self-intersections
-    if (points.length >= 2) {
-      // Find the closest segment (without strict tolerance limit)
-      let closestSegmentIndex = -1;
-      let closestDistance = Infinity;
+    // Normal farm creation logic (only when explicitly enabled via button)
+    if (
+      isCreatingNewFarmPlot &&
+      !isEditingCoordinates &&
+      !selectedFarmId &&
+      !isInsertingCoordinates
+    ) {
+      // Convert area coordinates to Coordinate format for validation
+      let areaCoordinatesConverted: Coordinate[] = [];
+      if (areaData?.coordinates && areaData.coordinates.length > 0) {
+        areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+          areaData.coordinates,
+        );
+      }
 
-      for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
+      let finalCoord = newCoord;
 
-        const p1Lng =
-          typeof p1.longitude === 'string'
-            ? parseFloat(p1.longitude)
-            : p1.longitude;
-        const p1Lat =
-          typeof p1.latitude === 'string'
-            ? parseFloat(p1.latitude)
-            : p1.latitude;
-        const p2Lng =
-          typeof p2.longitude === 'string'
-            ? parseFloat(p2.longitude)
-            : p2.longitude;
-        const p2Lat =
-          typeof p2.latitude === 'string'
-            ? parseFloat(p2.latitude)
-            : p2.latitude;
+      // Check if point is in area polygon, snap to boundary if outside
+      if (
+        areaCoordinatesConverted.length >= 3 &&
+        !isPointInPolygon(newCoord, areaCoordinatesConverted)
+      ) {
+        // Find the closest boundary segment to snap to
+        let closestSnapPoint: Coordinate | null = null;
+        let closestDistance = Infinity;
 
-        if (
-          !isFinite(p1Lng) ||
-          !isFinite(p1Lat) ||
-          !isFinite(p2Lng) ||
-          !isFinite(p2Lat)
-        ) {
-          continue;
+        // Check each boundary segment
+        for (let i = 0; i < areaCoordinatesConverted.length; i++) {
+          const p1 = areaCoordinatesConverted[i];
+          const p2 =
+            areaCoordinatesConverted[(i + 1) % areaCoordinatesConverted.length];
+
+          // Ensure valid coordinates
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
+
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
+          }
+
+          try {
+            // Create boundary segment line
+            const boundarySegment = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+
+            // Find nearest point on this segment
+            const tapPoint = turf.point([
+              newCoord.longitude,
+              newCoord.latitude,
+            ]);
+            const nearest = turf.nearestPointOnLine(boundarySegment, tapPoint);
+            const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
+
+            // Track closest segment
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSnapPoint = {
+                latitude: nearest.geometry.coordinates[1],
+                longitude: nearest.geometry.coordinates[0],
+              };
+            }
+          } catch (error) {
+            console.warn(`Error snapping to boundary segment ${i}:`, error);
+            continue;
+          }
         }
 
-        try {
-          const segmentLine = turf.lineString([
-            [p1Lng, p1Lat],
-            [p2Lng, p2Lat],
-          ]);
-          const tapPoint = turf.point([
-            finalCoord.longitude,
-            finalCoord.latitude,
-          ]);
-          const nearest = turf.nearestPointOnLine(segmentLine, tapPoint);
-          const distanceMeters = nearest.properties.dist * 1000;
-
-          if (distanceMeters < closestDistance) {
-            closestDistance = distanceMeters;
-            closestSegmentIndex = i;
-          }
-        } catch (error) {
-          console.warn(`Error finding closest segment ${i}:`, error);
-          continue;
+        // Use the closest snapped point found
+        if (closestSnapPoint) {
+          finalCoord = closestSnapPoint;
+        } else {
+          console.warn(
+            'Could not snap to boundary. Using original coordinate.',
+            newCoord,
+          );
         }
       }
 
-      // Insert the marker at the tapped location (finalCoord), not the snap point
-      // This breaks the nearest segment and inserts the marker between its endpoints
-      if (closestSegmentIndex !== -1) {
-        insertPoint(finalCoord, closestSegmentIndex + 1);
+      // Check for overlap with existing farms
+      for (const farm of farms) {
+        if (farm.coordinates && farm.coordinates.length > 0) {
+          const farmCoordinatesConverted =
+            convertBackendCoordinatesToCoordinates(farm.coordinates);
+
+          if (
+            farmCoordinatesConverted.length > 0 &&
+            doPolygonsOverlap([finalCoord], farmCoordinatesConverted)
+          ) {
+            Alert.alert(
+              'Overlaps with Farm',
+              `This overlaps with an existing farm plot (${farm.Soil_Type || 'Unknown'}).`,
+            );
+            return;
+          }
+        }
+      }
+
+      // Conflict resolution: If tap is near a marker, let marker handler deal with it
+      if (isTapNearExistingMarker(finalCoord, points)) {
         return;
+      }
+
+      // For first 2 points, append freely to start the polygon
+      if (points.length < 2) {
+        handleStateChange([...points, finalCoord]);
+        return;
+      }
+
+      // For 2+ points, find the nearest segment and insert on it
+      // This ensures the polygon grows properly without self-intersections
+      if (points.length >= 2) {
+        // Find the closest segment (without strict tolerance limit)
+        let closestSegmentIndex = -1;
+        let closestDistance = Infinity;
+
+        for (let i = 0; i < points.length; i++) {
+          const p1 = points[i];
+          const p2 = points[(i + 1) % points.length];
+
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
+
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
+          }
+
+          try {
+            const segmentLine = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+            const tapPoint = turf.point([
+              finalCoord.longitude,
+              finalCoord.latitude,
+            ]);
+            const nearest = turf.nearestPointOnLine(segmentLine, tapPoint);
+            const distanceMeters = nearest.properties.dist * 1000;
+
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSegmentIndex = i;
+            }
+          } catch (error) {
+            console.warn(`Error finding closest segment ${i}:`, error);
+            continue;
+          }
+        }
+
+        // Insert the marker at the tapped location (finalCoord), not the snap point
+        // This breaks the nearest segment and inserts the marker between its endpoints
+        if (closestSegmentIndex !== -1) {
+          insertPoint(finalCoord, closestSegmentIndex + 1);
+          return;
+        }
       }
     }
   };
@@ -826,6 +1248,15 @@ const FarmPlotCoordinates = () => {
   }, [undoStack.length, redoStack.length]);
 
   const handleConfirmUpdate = () => {
+    if (!isCreatingNewFarmPlot && !farmId) {
+      Alert.alert(
+        'Not in Creation Mode',
+        'Please click the "New Farm Plot" button to create a new farm.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+
     if (points.length < 3) {
       Alert.alert(
         'Farm Plot Incomplete',
@@ -857,30 +1288,72 @@ const FarmPlotCoordinates = () => {
       return;
     }
 
+    // Validate polygon is within area boundary
+    if (areaData?.coordinates && areaData.coordinates.length > 0) {
+      const areaCoordinatesConverted = convertBackendCoordinatesToCoordinates(
+        areaData.coordinates,
+      );
+      if (
+        areaCoordinatesConverted.length >= 3 &&
+        points.length >= 3 &&
+        !isPolygonWithinBoundary(points, areaCoordinatesConverted)
+      ) {
+        Alert.alert(
+          'Farm Plot Outside Area',
+          'The farm plot boundary exceeds the land claim area. Please adjust the markers so the entire farm stays within the land claim area.',
+        );
+        return;
+      }
+    }
+
     setIsUpdating(true);
     setError(null);
 
     try {
-      const farmData = {
-        coordinates: points,
-        Soil_Type: soilType,
-        Soil_Suitability: soilSuitability,
-        Hectares: hectares,
-        Status: farmId ? 'Inactive' : 'Inactive', // Always Inactive on creation/update
-      };
-
-      // If editing existing farm
+      // If editing existing farm, use separate routes for coordinates and data
       if (farmId) {
-        await axios.put(`${API_URL}/area/${areaId}/farm/${farmId}`, farmData, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${userToken}`,
+        // First update coordinates (this is independent)
+        await axios.put(
+          `${API_URL}/area/${areaId}/farm/${farmId}/coordinates`,
+          { coordinates: points },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${userToken}`,
+            },
+            timeout: 10000,
           },
-          timeout: 10000,
-        });
+        );
+
+        // Then update farm data (soil type, suitability, status, hectares)
+        await axios.put(
+          `${API_URL}/area/${areaId}/farm/${farmId}/data`,
+          {
+            Soil_Type: soilType,
+            Soil_Suitability: soilSuitability,
+            Hectares: hectares,
+            Status: 'Inactive',
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${userToken}`,
+            },
+            timeout: 10000,
+          },
+        );
+
         Alert.alert('Success', 'Farm plot updated successfully!');
       } else {
         // Creating new farm
+        const farmData = {
+          coordinates: points,
+          Soil_Type: soilType,
+          Soil_Suitability: soilSuitability,
+          Hectares: hectares,
+          Status: 'Inactive',
+        };
+
         await axios.post(`${API_URL}/area/${areaId}/farm`, farmData, {
           headers: {
             'Content-Type': 'application/json',
@@ -893,6 +1366,7 @@ const FarmPlotCoordinates = () => {
 
       setUndoStack([]);
       setRedoStack([]);
+      setIsCreatingNewFarmPlot(false);
       navigation.goBack();
     } catch (err) {
       const error = err as AxiosError;
@@ -925,6 +1399,7 @@ const FarmPlotCoordinates = () => {
           // Clear the form and go back
           setUndoStack([]);
           setRedoStack([]);
+          setIsCreatingNewFarmPlot(false);
           navigation.goBack();
         } catch (offlineError) {
           console.error('Failed to save farm offline:', offlineError);
@@ -1030,29 +1505,6 @@ const FarmPlotCoordinates = () => {
         </View>
       </View>
 
-      {/* --- INFO PANEL --- */}
-      {farms.length > 0 && (
-        <ScrollView
-          style={localStyles.infoPanel}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-        >
-          {farms.map((farm) => (
-            <View key={farm.Farm_ID} style={localStyles.farmCard}>
-              <Text style={localStyles.farmCardTitle}>
-                {farm.Soil_Type || 'Farm'}
-              </Text>
-              <Text style={localStyles.farmCardText}>
-                Hectares: {farm.Hectares}
-              </Text>
-              <Text style={localStyles.farmCardText}>
-                Status: {farm.Status}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
-      )}
-
       {/* --- MAP VIEW --- */}
       <MapView
         ref={mapRef}
@@ -1086,7 +1538,6 @@ const FarmPlotCoordinates = () => {
             )}
             strokeWidth={2}
             strokeColor="blue"
-            lineDashPattern={[5, 5]}
           />
         )}
 
@@ -1095,22 +1546,134 @@ const FarmPlotCoordinates = () => {
           const farmCoordinates = convertBackendCoordinatesToCoordinates(
             farm.coordinates,
           );
+          const isSelectedFarm = selectedFarmId === farm.Farm_ID;
+          const isEditingThisFarm =
+            isEditingCoordinates && selectedFarmId === farm.Farm_ID;
+          const coordsToDisplay = isEditingThisFarm
+            ? editingFarmCoordinates
+            : farmCoordinates;
+          const polylineColor = isEditingThisFarm
+            ? 'yellow'
+            : isSelectedFarm
+              ? 'red'
+              : 'orange';
+          const markerColor = isEditingThisFarm
+            ? 'yellow'
+            : isSelectedFarm
+              ? 'red'
+              : 'orange';
+
           return (
             <View key={`farm-${farm.Farm_ID}`}>
-              {farmCoordinates.length > 1 && (
+              {coordsToDisplay.length > 1 && (
                 <Polyline
-                  coordinates={farmCoordinates}
-                  strokeWidth={2}
-                  strokeColor="orange"
+                  coordinates={coordsToDisplay}
+                  strokeWidth={isEditingThisFarm ? 4 : 2}
+                  strokeColor={polylineColor}
                 />
               )}
-              {farmCoordinates.map((coord, idx) => (
+              {coordsToDisplay.length >= 3 && (
+                <Polyline
+                  coordinates={[
+                    coordsToDisplay[coordsToDisplay.length - 1],
+                    coordsToDisplay[0],
+                  ]}
+                  strokeWidth={isEditingThisFarm ? 4 : 2}
+                  strokeColor={polylineColor}
+                />
+              )}
+              {coordsToDisplay.map((coord, idx) => (
                 <Marker
                   key={`farm-marker-${farm.Farm_ID}-${idx}`}
                   coordinate={coord}
-                  pinColor="orange"
+                  pinColor={Platform.OS !== 'ios' ? markerColor : undefined}
                   title={`Farm: ${farm.Soil_Type}`}
-                />
+                  draggable={isEditingThisFarm}
+                  onDrag={
+                    isEditingThisFarm
+                      ? (e) => {
+                          let draggedCoord = e.nativeEvent.coordinate;
+
+                          // Get area boundary for validation
+                          let areaCoordinatesConverted: Coordinate[] = [];
+                          if (
+                            areaData?.coordinates &&
+                            areaData.coordinates.length > 0
+                          ) {
+                            areaCoordinatesConverted =
+                              convertBackendCoordinatesToCoordinates(
+                                areaData.coordinates,
+                              );
+                          }
+
+                          // If outside area boundary, snap to it
+                          if (
+                            areaCoordinatesConverted.length >= 3 &&
+                            !isPointInPolygon(
+                              draggedCoord,
+                              areaCoordinatesConverted,
+                            )
+                          ) {
+                            const boundaryInfo = findClosestBoundarySegment(
+                              draggedCoord,
+                              areaCoordinatesConverted,
+                            );
+                            if (boundaryInfo) {
+                              draggedCoord = boundaryInfo.snappedPoint;
+                            }
+                          }
+
+                          let finalCoords = editingFarmCoordinates.map(
+                            (c, i) => (i === idx ? draggedCoord : c),
+                          );
+
+                          // Check for overlaps with other farms and snap to their boundary
+                          for (const otherFarm of farms) {
+                            if (
+                              otherFarm.Farm_ID !== selectedFarmId &&
+                              otherFarm.coordinates
+                            ) {
+                              const otherFarmCoords =
+                                convertBackendCoordinatesToCoordinates(
+                                  otherFarm.coordinates,
+                                );
+
+                              // If the dragged marker is inside another farm's polygon
+                              if (
+                                otherFarmCoords.length >= 3 &&
+                                isPointInPolygon(draggedCoord, otherFarmCoords)
+                              ) {
+                                // Find the nearest boundary segment of the other farm
+                                const boundaryInfo = findClosestBoundarySegment(
+                                  draggedCoord,
+                                  otherFarmCoords,
+                                );
+
+                                if (boundaryInfo) {
+                                  // Snap the dragged marker to the boundary
+                                  finalCoords = finalCoords.map((c, i) =>
+                                    i === idx ? boundaryInfo.snappedPoint : c,
+                                  );
+                                }
+                              }
+                            }
+                          }
+
+                          handleEditingStateChange(finalCoords);
+                        }
+                      : undefined
+                  }
+                >
+                  {Platform.OS === 'ios' && (
+                    <View>
+                      <MaterialCommunityIcons
+                        name="map-marker"
+                        size={isEditingThisFarm ? 40 : 30}
+                        color={markerColor}
+                      />
+                    </View>
+                  )}
+                </Marker>
               ))}
             </View>
           );
@@ -1154,55 +1717,144 @@ const FarmPlotCoordinates = () => {
             coordinates={[points[points.length - 1], points[0]]}
             strokeWidth={3}
             strokeColor="red"
-            lineDashPattern={[5, 5]}
           />
         )}
       </MapView>
 
       {/* --- FLOATING CONTROLS --- */}
       <View style={localStyles.floatingControlsContainer}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={undoPoint}
-            disabled={undoStack.length === 0}
-            style={[
-              localStyles.actionButton,
-              {
-                backgroundColor:
-                  undoStack.length > 0
-                    ? Styles.button.backgroundColor
-                    : Styles.inputFields.backgroundColor,
-                marginRight: 10,
-              },
-            ]}
-          >
-            <EvilIcons
-              name="undo"
-              size={30}
-              color={undoStack.length > 0 ? 'black' : 'grey'}
-            />
-          </TouchableOpacity>
+        {!isEditingCoordinates && (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setIsCreatingNewFarmPlot(!isCreatingNewFarmPlot)}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: isCreatingNewFarmPlot
+                    ? '#d9534f'
+                    : '#28a745',
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="plus-circle"
+                size={30}
+                color={isCreatingNewFarmPlot ? 'white' : 'white'}
+              />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={redoPoint}
-            disabled={redoStack.length === 0}
-            style={[
-              localStyles.actionButton,
-              {
-                backgroundColor:
-                  redoStack.length > 0
-                    ? Styles.button.backgroundColor
-                    : Styles.inputFields.backgroundColor,
-              },
-            ]}
-          >
-            <EvilIcons
-              name="redo"
-              size={30}
-              color={redoStack.length > 0 ? 'black' : 'grey'}
-            />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={undoPoint}
+              disabled={undoStack.length === 0}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor:
+                    undoStack.length > 0
+                      ? Styles.button.backgroundColor
+                      : Styles.inputFields.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <EvilIcons
+                name="undo"
+                size={30}
+                color={undoStack.length > 0 ? 'black' : 'grey'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={redoPoint}
+              disabled={redoStack.length === 0}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor:
+                    redoStack.length > 0
+                      ? Styles.button.backgroundColor
+                      : Styles.inputFields.backgroundColor,
+                },
+              ]}
+            >
+              <EvilIcons
+                name="redo"
+                size={30}
+                color={redoStack.length > 0 ? 'black' : 'grey'}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isEditingCoordinates && (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setIsInsertingCoordinates(!isInsertingCoordinates)}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: isInsertingCoordinates
+                    ? '#28a745'
+                    : '#6c757d',
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={isInsertingCoordinates ? 'check-circle' : 'plus-circle'}
+                size={28}
+                color="white"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={undoEditingPoint}
+              disabled={editingUndoStack.length === 0}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor:
+                    editingUndoStack.length > 0
+                      ? Styles.button.backgroundColor
+                      : Styles.inputFields.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <EvilIcons
+                name="undo"
+                size={30}
+                color={editingUndoStack.length > 0 ? 'black' : 'grey'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={redoEditingPoint}
+              disabled={editingRedoStack.length === 0}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor:
+                    editingRedoStack.length > 0
+                      ? Styles.button.backgroundColor
+                      : Styles.inputFields.backgroundColor,
+                },
+              ]}
+            >
+              <EvilIcons
+                name="redo"
+                size={30}
+                color={editingRedoStack.length > 0 ? 'black' : 'grey'}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* --- FARM DETAILS MODAL --- */}
@@ -1333,26 +1985,423 @@ const FarmPlotCoordinates = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* --- SAVE BUTTON --- */}
-      <TouchableOpacity
-        style={[
-          Styles.button,
-          localStyles.updateButton,
-          {
-            opacity: points.length >= 3 && !isUpdating ? 1 : 0.5,
-          },
-        ]}
-        onPress={handleConfirmUpdate}
-        disabled={points.length < 3 || isUpdating}
+      {/* --- FARM DETAILS MODAL --- */}
+      <Modal
+        visible={farmDetailsVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setFarmDetailsVisible(false);
+          setIsEditingCoordinates(false);
+        }}
       >
-        {isUpdating ? (
-          <ActivityIndicator color={Styles.buttonText.color} />
-        ) : (
-          <Text style={Styles.buttonText}>
-            {farmId ? 'Edit Farm Plot' : 'Save Farm Plot'}
-          </Text>
-        )}
-      </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Animated.View
+              style={[
+                Styles.formBox,
+                {
+                  width: '100%',
+                  minHeight: '50%',
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 20,
+                  transform: [{ translateY: panY }],
+                },
+              ]}
+            >
+              {/* Title Header */}
+              <View style={localStyles.modalHeader}>
+                <Text style={localStyles.modalTitle}>Farm Details</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setFarmDetailsVisible(false);
+                    setIsEditingCoordinates(false);
+                  }}
+                  style={localStyles.closeButton}
+                >
+                  <Ionicons
+                    name="chevron-down"
+                    size={28}
+                    color={Styles.buttonText.color}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                style={localStyles.formContainer}
+              >
+                {/* Soil Type Display */}
+                <View style={localStyles.detailGroup}>
+                  <Text style={localStyles.detailLabel}>Soil Type</Text>
+                  <Text style={localStyles.detailValue}>{soilType}</Text>
+                </View>
+
+                {/* Soil Suitability Display */}
+                <View style={localStyles.detailGroup}>
+                  <Text style={localStyles.detailLabel}>Soil Suitability</Text>
+                  <Text style={localStyles.detailValue}>{soilSuitability}</Text>
+                </View>
+
+                {/* Hectares Display */}
+                <View style={localStyles.detailGroup}>
+                  <Text style={localStyles.detailLabel}>Hectares</Text>
+                  <Text style={localStyles.detailValue}>{hectares} ha</Text>
+                </View>
+
+                {/* Edit Status Alert */}
+                {isEditingCoordinates && (
+                  <View
+                    style={[
+                      localStyles.detailGroup,
+                      {
+                        backgroundColor: isInsertingCoordinates
+                          ? '#d4edda'
+                          : '#fff3cd',
+                        padding: 12,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: isInsertingCoordinates
+                          ? '#28a745'
+                          : '#ffc107',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: isInsertingCoordinates ? '#155724' : '#856404',
+                        fontWeight: '600',
+                        fontSize: 14,
+                      }}
+                    >
+                      {isInsertingCoordinates
+                        ? '✓ Insert Mode Active: Tap on the map to add coordinates'
+                        : '📍 View Mode: Enable insert mode to add coordinates'}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Modal Buttons */}
+              <View style={localStyles.buttonContainer}>
+                {!isEditingCoordinates ? (
+                  <>
+                    <TouchableOpacity
+                      style={[Styles.button, localStyles.submitButton]}
+                      onPress={() => {
+                        setOriginalEditingCoordinates([
+                          ...editingFarmCoordinates,
+                        ]);
+                        setIsEditingCoordinates(true);
+                        setIsInsertingCoordinates(false);
+                        setEditingUndoStack([]);
+                        setEditingRedoStack([]);
+                        setFarmDetailsVisible(false);
+                      }}
+                    >
+                      <Text style={Styles.buttonText}>Edit Coordinates</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[Styles.button, localStyles.submitButton]}
+                      onPress={() => {
+                        setFarmDetailsVisible(false);
+                        setIsEditingFarmData(true);
+                      }}
+                    >
+                      <Text style={Styles.buttonText}>Edit Farm Data</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={localStyles.cancelButton}
+                      onPress={() => {
+                        setFarmDetailsVisible(false);
+                        setSelectedFarmId(null);
+                      }}
+                    >
+                      <Text style={localStyles.cancelButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={localStyles.cancelButton}
+                      onPress={() => {
+                        setIsEditingCoordinates(false);
+                        setIsInsertingCoordinates(false);
+                        setEditingFarmCoordinates([
+                          ...originalEditingCoordinates,
+                        ]);
+                        setEditingUndoStack([]);
+                        setEditingRedoStack([]);
+                        setSelectedFarmId(null);
+                      }}
+                    >
+                      <Text style={localStyles.cancelButtonText}>
+                        Close Edit
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </Animated.View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* --- EDIT FARM DATA MODAL --- */}
+      <Modal
+        visible={isEditingFarmData}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsEditingFarmData(false)}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <Animated.View
+              style={[
+                Styles.formBox,
+                {
+                  width: '100%',
+                  minHeight: '70%',
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 20,
+                  transform: [{ translateY: panY }],
+                },
+              ]}
+            >
+              {/* Title Header */}
+              <View style={localStyles.modalHeader}>
+                <Text style={localStyles.modalTitle}>Edit Farm Data</Text>
+                <TouchableOpacity
+                  onPress={() => setIsEditingFarmData(false)}
+                  style={localStyles.closeButton}
+                >
+                  <Ionicons
+                    name="chevron-down"
+                    size={28}
+                    color={Styles.buttonText.color}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                style={localStyles.formContainer}
+              >
+                {/* Soil Type Dropdown */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Soil Type</Text>
+                  <FormDropdown
+                    data={SoilTypeData}
+                    value={soilType}
+                    onValueChange={setSoilType}
+                    placeholder="Select soil type"
+                  />
+                </View>
+
+                {/* Soil Suitability Dropdown */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Soil Suitability</Text>
+                  <FormDropdown
+                    data={SoilSuitabilityData}
+                    value={soilSuitability}
+                    onValueChange={setSoilSuitability}
+                    placeholder="Select suitability"
+                  />
+                </View>
+
+                {/* Hectares Display */}
+                <View style={localStyles.formGroup}>
+                  <Text style={localStyles.label}>Hectares</Text>
+                  <TextInput
+                    style={[
+                      Styles.inputFields,
+                      { marginBottom: 15, width: '100%' },
+                    ]}
+                    value={`${hectares} ha`}
+                    editable={false}
+                    placeholderTextColor="#8b8b8bff"
+                  />
+                </View>
+              </ScrollView>
+
+              {/* Modal Buttons */}
+              <View style={localStyles.buttonContainer}>
+                <TouchableOpacity
+                  style={[
+                    Styles.button,
+                    localStyles.submitButton,
+                    {
+                      opacity:
+                        soilType && soilSuitability && !isUpdating ? 1 : 0.5,
+                    },
+                  ]}
+                  onPress={async () => {
+                    if (!selectedFarmId || !soilType || !soilSuitability) {
+                      Alert.alert(
+                        'Missing Fields',
+                        'Please fill in all required fields.',
+                      );
+                      return;
+                    }
+
+                    try {
+                      setIsUpdating(true);
+                      await axios.put(
+                        `${API_URL}/area/${areaId}/farm/${selectedFarmId}/data`,
+                        {
+                          Soil_Type: soilType,
+                          Soil_Suitability: soilSuitability,
+                          Hectares: hectares,
+                          Status: 'Inactive',
+                        },
+                        {
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${userToken}`,
+                          },
+                          timeout: 10000,
+                        },
+                      );
+
+                      // Refresh farms list
+                      await fetchAreaAndFarms();
+                      setIsEditingFarmData(false);
+                      setFarmDetailsVisible(false);
+                      setSelectedFarmId(null);
+                      Alert.alert('Success', 'Farm data updated!');
+                    } catch (err) {
+                      const error = err as AxiosError;
+                      const apiErrorMessage = (
+                        error.response?.data as { message?: string }
+                      )?.message;
+                      Alert.alert(
+                        'Error',
+                        apiErrorMessage || 'Failed to update farm data',
+                      );
+                    } finally {
+                      setIsUpdating(false);
+                    }
+                  }}
+                  disabled={!soilType || !soilSuitability || isUpdating}
+                >
+                  {isUpdating ? (
+                    <ActivityIndicator color={Styles.buttonText.color} />
+                  ) : (
+                    <Text style={Styles.buttonText}>Save Changes</Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={localStyles.cancelButton}
+                  onPress={() => setIsEditingFarmData(false)}
+                  disabled={isUpdating}
+                >
+                  <Text style={localStyles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* --- SAVE BUTTON --- */}
+      {!isEditingCoordinates ? (
+        <TouchableOpacity
+          style={[
+            Styles.button,
+            localStyles.updateButton,
+            {
+              opacity: points.length >= 3 && !isUpdating ? 1 : 0.5,
+            },
+          ]}
+          onPress={handleConfirmUpdate}
+          disabled={points.length < 3 || isUpdating}
+        >
+          {isUpdating ? (
+            <ActivityIndicator color={Styles.buttonText.color} />
+          ) : (
+            <Text style={Styles.buttonText}>
+              {farmId ? 'Edit Farm Plot' : 'Save Farm Plot'}
+            </Text>
+          )}
+        </TouchableOpacity>
+      ) : (
+        <View style={localStyles.bottomButtonsContainer}>
+          <TouchableOpacity
+            style={[Styles.button, localStyles.bottomButton]}
+            onPress={async () => {
+              if (!selectedFarmId || editingFarmCoordinates.length < 3) {
+                Alert.alert('Invalid', 'Must have at least 3 coordinates');
+                return;
+              }
+
+              try {
+                setIsUpdating(true);
+                await axios.put(
+                  `${API_URL}/area/${areaId}/farm/${selectedFarmId}/coordinates`,
+                  { coordinates: editingFarmCoordinates },
+                  {
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${userToken}`,
+                    },
+                    timeout: 10000,
+                  },
+                );
+
+                // Refresh farms list
+                await fetchAreaAndFarms();
+                setFarmDetailsVisible(false);
+                setIsEditingCoordinates(false);
+                setIsInsertingCoordinates(false);
+                setEditingUndoStack([]);
+                setEditingRedoStack([]);
+                setSelectedFarmId(null);
+                Alert.alert('Success', 'Farm coordinates updated!');
+              } catch (err) {
+                const error = err as AxiosError;
+                const apiErrorMessage = (
+                  error.response?.data as { message?: string }
+                )?.message;
+                Alert.alert(
+                  'Error',
+                  apiErrorMessage || 'Failed to update coordinates',
+                );
+              } finally {
+                setIsUpdating(false);
+              }
+            }}
+            disabled={isUpdating}
+          >
+            {isUpdating ? (
+              <ActivityIndicator color={Styles.buttonText.color} />
+            ) : (
+              <Text style={Styles.buttonText}>Save Coordinates</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={localStyles.bottomCancelButton}
+            onPress={() => {
+              setIsEditingCoordinates(false);
+              setIsInsertingCoordinates(false);
+              setEditingFarmCoordinates([...originalEditingCoordinates]);
+              setEditingUndoStack([]);
+              setEditingRedoStack([]);
+              setSelectedFarmId(null);
+            }}
+            disabled={isUpdating}
+          >
+            <Text style={localStyles.cancelButtonText}>Cancel Edit</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -1437,9 +2486,11 @@ const localStyles = StyleSheet.create({
     position: 'absolute',
     top: 110,
     right: 10,
+    left: 10,
     zIndex: 1,
     paddingTop: 10,
     paddingRight: 10,
+    paddingLeft: 10,
     flexDirection: 'row',
   },
   actionButton: {
@@ -1455,6 +2506,27 @@ const localStyles = StyleSheet.create({
     marginTop: 0,
     alignSelf: 'center',
     zIndex: 1,
+  },
+  bottomButtonsContainer: {
+    position: 'absolute',
+    bottom: 60,
+    left: 20,
+    right: 20,
+    gap: 10,
+    zIndex: 1,
+  },
+  bottomButton: {
+    marginTop: 0,
+    width: '100%',
+  },
+  bottomCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F4D03F',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -1501,11 +2573,25 @@ const localStyles = StyleSheet.create({
   formGroup: {
     marginBottom: 18,
   },
+  detailGroup: {
+    marginBottom: 18,
+  },
   label: {
     fontSize: 18,
     fontWeight: '600',
     color: '#F4D03F',
     marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F4D03F',
+    marginBottom: 6,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: Styles.text.color,
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'column',
