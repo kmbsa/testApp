@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Platform,
   View,
@@ -29,7 +29,18 @@ import {
   AreaEntry,
   MapPreviewProps,
   Coordinate,
+  BackendCoordinate,
+  BackendPhoto,
 } from '../../../navigation/types';
+
+export interface Farm {
+  Farm_ID: number;
+  Soil_Type: string;
+  Soil_Suitability: string;
+  Hectares: string;
+  Status: string;
+  coordinates: BackendCoordinate[];
+}
 
 export interface WeatherValues {
   temperature?: number;
@@ -52,9 +63,7 @@ export interface WeatherForecastResponse {
   };
 }
 
-import { BackendCoordinate, BackendPhoto } from '../../../navigation/types';
-
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Helper function to get an icon based on the tomorrow.io weather code
 const getWeatherIcon = (weatherCode: number | undefined): string => {
@@ -107,6 +116,10 @@ export default function AreaDetailsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+  const [selectedFarmCropCount, setSelectedFarmCropCount] = useState<number>(0);
+  const [farmModalVisible, setFarmModalVisible] = useState(false);
 
   const [weatherData, setWeatherData] = useState<WeatherValues | null>(null);
   const [isWeatherLoading, setIsWeatherLoading] = useState(false);
@@ -119,8 +132,6 @@ export default function AreaDetailsScreen() {
   const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
 
   const mapRef = useRef<MapView | null>(null);
-
-  const { width, height } = Dimensions.get('window');
 
   const areaId =
     typeof route.params?.areaId === 'number'
@@ -185,6 +196,7 @@ export default function AreaDetailsScreen() {
 
       const data = await response.data;
       setAreaData(data.area);
+      setFarms(data.area.farm || []);
 
       if (
         data.area &&
@@ -322,6 +334,84 @@ export default function AreaDetailsScreen() {
     }
   };
 
+  // Helper: Convert backend coordinates to map format
+  const convertBackendCoordinates = (
+    backendCoords: BackendCoordinate[],
+  ): Coordinate[] => {
+    return backendCoords.map((coord) => ({
+      latitude: Number(coord.Latitude),
+      longitude: Number(coord.Longitude),
+    }));
+  };
+
+  // Helper: Ray-casting algorithm for point-in-polygon detection
+  const isPointInPolygon = (
+    point: Coordinate,
+    polygon: Coordinate[],
+  ): boolean => {
+    if (polygon.length < 3) return false;
+
+    const x = point.latitude;
+    const y = point.longitude;
+
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].latitude;
+      const yi = polygon[i].longitude;
+      const xj = polygon[j].latitude;
+      const yj = polygon[j].longitude;
+
+      const intersect =
+        yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
+  };
+
+  // Helper: Get crop count for a specific farm
+  const getFarmCropCount = async (farmId: number): Promise<number> => {
+    if (!userToken) return 0;
+
+    try {
+      const response = await axios.get<{ count: number }>(
+        `${API_URL}/farm/farm_harvest_ongoing_count/${farmId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      return response.data.count || 0;
+    } catch (error) {
+      console.warn(`Failed to fetch crop count for farm ${farmId}:`, error);
+      return 0;
+    }
+  };
+
+  // Helper: Handle farm tap
+  const handleFarmTap = async (farm: Farm) => {
+    setSelectedFarm(farm);
+    const cropCount = await getFarmCropCount(farm.Farm_ID);
+    setSelectedFarmCropCount(cropCount);
+    setFarmModalVisible(true);
+  };
+
+  // Helper: Detect farm taps on map
+  const handleMapPress = (event: any) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    const tapPoint: Coordinate = { latitude, longitude };
+
+    for (const farm of farms) {
+      const farmCoordinates = convertBackendCoordinates(farm.coordinates);
+      if (isPointInPolygon(tapPoint, farmCoordinates)) {
+        handleFarmTap(farm);
+        return;
+      }
+    }
+  };
+
   const getInitialRegion = (
     areaData: AreaEntry | null,
   ):
@@ -434,6 +524,7 @@ export default function AreaDetailsScreen() {
           style={localStyles.map}
           initialRegion={getInitialRegion(areaData)}
           mapType="hybrid"
+          onPress={handleMapPress}
           onMapReady={() => {
             if (mapCoordinates.length > 0 && mapRef.current) {
               mapRef.current.fitToCoordinates(mapCoordinates, {
@@ -463,6 +554,26 @@ export default function AreaDetailsScreen() {
               )}
             </Marker>
           ))}
+
+          {/* Render farm plots */}
+          {farms.map((farm) => {
+            const farmCoords = convertBackendCoordinates(farm.coordinates);
+            if (farmCoords.length < 2) return null;
+            return [
+              <Polyline
+                key={`farm-polyline-${farm.Farm_ID}`}
+                coordinates={farmCoords}
+                strokeWidth={3}
+                strokeColor="orange"
+              />,
+              <Polyline
+                key={`farm-closing-${farm.Farm_ID}`}
+                coordinates={[farmCoords[farmCoords.length - 1], farmCoords[0]]}
+                strokeWidth={3}
+                strokeColor="orange"
+              />,
+            ];
+          })}
         </MapView>
 
         <View
@@ -603,26 +714,13 @@ export default function AreaDetailsScreen() {
                 <TouchableOpacity
                   style={[Styles.button, localStyles.farmActivityButton]}
                   onPress={() => {
-                    navigation.navigate('FarmActivity', {
-                      areaId: areaData.Area_ID,
-                    });
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text style={Styles.buttonText}>
-                    Go to Farm Activity Input
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[Styles.button, localStyles.farmActivityButton]}
-                  onPress={() => {
                     navigation.navigate('FarmPlotCoordinates', {
                       areaId: areaData.Area_ID,
                     });
                     setModalVisible(false);
                   }}
                 >
-                  <Text style={Styles.buttonText}>Add Farm</Text>
+                  <Text style={Styles.buttonText}>Add / Update Farm Plot</Text>
                 </TouchableOpacity>
               </View>
 
@@ -671,7 +769,85 @@ export default function AreaDetailsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 🗑️ REMOVED: The second image viewer Modal component */}
+      {/* Farm Details Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={farmModalVisible}
+        onRequestClose={() => setFarmModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={localStyles.modalContainer}
+          activeOpacity={1}
+          onPressOut={() => setFarmModalVisible(false)}
+        >
+          <View
+            style={[
+              localStyles.modalContent,
+              { paddingBottom: insets.bottom + 20 },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={localStyles.modalHeader}>
+              <Text style={localStyles.modalTitle}>
+                {selectedFarm
+                  ? `Farm #${selectedFarm.Farm_ID}`
+                  : 'Farm Details'}
+              </Text>
+              <TouchableOpacity onPress={() => setFarmModalVisible(false)}>
+                <Ionicons
+                  name="close-circle"
+                  size={30}
+                  color={Styles.text.color}
+                />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedFarm && (
+                <>
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>Soil Type:</Text>{' '}
+                    {selectedFarm.Soil_Type || 'N/A'}
+                  </Text>
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>
+                      Soil Suitability:
+                    </Text>{' '}
+                    {selectedFarm.Soil_Suitability || 'N/A'}
+                  </Text>
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>Hectares:</Text>{' '}
+                    {selectedFarm.Hectares || 'N/A'}
+                  </Text>
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>Status:</Text>{' '}
+                    {selectedFarm.Status || 'N/A'}
+                  </Text>
+                  <Text style={localStyles.modalText}>
+                    <Text style={{ fontWeight: 'bold' }}>Ongoing Crops:</Text>{' '}
+                    {selectedFarmCropCount}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={[Styles.button, localStyles.farmActivityButton]}
+                    onPress={() => {
+                      if (selectedFarm) {
+                        navigation.navigate('FarmPlotCoordinates', {
+                          areaId,
+                          farmId: selectedFarm.Farm_ID,
+                        });
+                      }
+                      setFarmModalVisible(false);
+                    }}
+                  >
+                    <Text style={Styles.buttonText}>View Farm Planning</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
