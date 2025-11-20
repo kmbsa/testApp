@@ -221,6 +221,13 @@ import {
   ProvinceEntry,
 } from '../../../../assets/data/Regions';
 
+import {
+  saveOfflineSubmission,
+  retrySyncOfflineSubmissions,
+  getPendingSubmissions,
+  isNetworkError,
+} from '../../../utils/OfflineSubmissionManager';
+
 /**
  * Performs the Centroid-in-Polygon test to find the province.
  * @param polygonPoints The user-drawn polygon coordinates (Coordinate[]).
@@ -812,14 +819,6 @@ export default function Map() {
   const handleSubmitForm = async () => {
     if (isSubmitting) return;
 
-    if (currentPage !== 3) {
-      Alert.alert(
-        'Incomplete Form',
-        'Please proceed to the Topographical Data page.',
-      );
-      return;
-    }
-
     if (
       !areaName.trim() ||
       !areaRegion?.trim() ||
@@ -870,6 +869,7 @@ export default function Map() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
         },
+        timeout: 10000,
       });
 
       if (response.status === 200 || response.status === 201) {
@@ -908,12 +908,29 @@ export default function Map() {
           );
         }
       } else if (error.request) {
-        // Request made but no response
+        // Network error: request made but no response (offline scenario)
         console.error('No response received:', error.request);
-        Alert.alert(
-          'Network Error',
-          'No response received from the server. Please check your network connection.',
-        );
+
+        // Save submission for offline sync
+        try {
+          await saveOfflineSubmission('area', '/area', 'POST', areaData);
+
+          Alert.alert(
+            'Offline Mode',
+            'You are currently offline. Your area data has been saved locally and will be submitted automatically when your connection is restored.',
+            [{ text: 'OK' }],
+          );
+
+          // Clear the form and close modal
+          clearForms();
+          setHasUnsavedChanges(false);
+        } catch (offlineError) {
+          console.error('Failed to save offline submission:', offlineError);
+          Alert.alert(
+            'Error',
+            'Could not save your submission offline. Please check your storage.',
+          );
+        }
       } else {
         // Something completely different happened
         console.error('Unexpected error:', error.message);

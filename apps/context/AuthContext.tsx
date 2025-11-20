@@ -9,6 +9,11 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { API_URL } from '@env';
+import { Alert } from 'react-native';
+import {
+  retrySyncOfflineSubmissions,
+  getPendingSubmissions,
+} from '../utils/OfflineSubmissionManager';
 
 // --- INTERFACES ---
 
@@ -324,6 +329,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     loadToken();
   }, [internalFetchUserData]);
+
+  // --- Offline Sync Effect: Attempt to sync when user is authenticated ---
+  useEffect(() => {
+    const attemptOfflineSync = async () => {
+      // Only sync if we have a token and user data
+      if (!userToken || !userData) {
+        return;
+      }
+
+      try {
+        // Check if there are any pending submissions
+        const pendingCount = (await getPendingSubmissions()).length;
+        if (pendingCount === 0) {
+          console.log('[OfflineSync] No pending submissions to sync.');
+          return;
+        }
+
+        console.log(
+          `[OfflineSync] Found ${pendingCount} pending submissions. Attempting to sync...`,
+        );
+
+        // Attempt to sync all pending submissions
+        const { successful, failed } = await retrySyncOfflineSubmissions(
+          userToken,
+        );
+
+        // Notify user of sync results
+        if (successful > 0) {
+          Alert.alert(
+            'Sync Complete',
+            `Successfully synced ${successful} offline submission(s) to the server.`,
+          );
+          console.log(
+            `[OfflineSync] Successfully synced ${successful} submissions`,
+          );
+        }
+
+        if (failed > 0) {
+          console.warn(
+            `[OfflineSync] ${failed} submissions still pending or failed. Will retry on next connection.`,
+          );
+        }
+      } catch (error) {
+        console.error('[OfflineSync] Error during offline sync:', error);
+      }
+    };
+
+    attemptOfflineSync();
+  }, [userToken, userData]);
 
   const contextValue = useMemo(
     () => ({

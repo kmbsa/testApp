@@ -43,6 +43,10 @@ import type {
   AreaEntry,
   BackendCoordinate,
 } from '../../../navigation/types';
+import {
+  saveOfflineSubmission,
+  isNetworkError,
+} from '../../../utils/OfflineSubmissionManager';
 
 // ============================================================================
 // COORDINATE CONVERSION & VALIDATION
@@ -872,6 +876,7 @@ const FarmPlotCoordinates = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
           },
+          timeout: 10000,
         });
         Alert.alert('Success', 'Farm plot updated successfully!');
       } else {
@@ -881,6 +886,7 @@ const FarmPlotCoordinates = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
           },
+          timeout: 10000,
         });
         Alert.alert('Success', 'Farm plot created successfully!');
       }
@@ -893,12 +899,49 @@ const FarmPlotCoordinates = () => {
       const apiErrorMessage = (error.response?.data as { message?: string })
         ?.message;
 
-      Alert.alert(
-        'Save Failed',
-        apiErrorMessage ||
-          error.message ||
-          'There was an issue saving your farm plot.',
-      );
+      // Check if this is a network error (offline scenario)
+      if (isNetworkError(error)) {
+        const endpoint = farmId
+          ? `/area/${areaId}/farm/${farmId}`
+          : `/area/${areaId}/farm`;
+        const method = farmId ? 'PUT' : 'POST';
+
+        try {
+          // Save the farm data for offline sync
+          await saveOfflineSubmission('farm', endpoint, method, {
+            coordinates: points,
+            Soil_Type: soilType,
+            Soil_Suitability: soilSuitability,
+            Hectares: hectares,
+            Status: 'Inactive',
+          });
+
+          Alert.alert(
+            'Offline Mode',
+            'You are currently offline. Your farm plot data has been saved locally and will be submitted automatically when your connection is restored.',
+            [{ text: 'OK' }],
+          );
+
+          // Clear the form and go back
+          setUndoStack([]);
+          setRedoStack([]);
+          navigation.goBack();
+        } catch (offlineError) {
+          console.error('Failed to save farm offline:', offlineError);
+          Alert.alert(
+            'Error',
+            'Could not save your farm plot offline. Please check your storage.',
+          );
+        }
+      } else {
+        // Handle other types of errors
+        Alert.alert(
+          'Save Failed',
+          apiErrorMessage ||
+            error.message ||
+            'There was an issue saving your farm plot.',
+        );
+      }
     } finally {
       setIsUpdating(false);
     }
