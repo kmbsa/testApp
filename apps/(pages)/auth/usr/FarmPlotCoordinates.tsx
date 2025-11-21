@@ -14,13 +14,7 @@ import {
   PanResponder,
   Animated,
 } from 'react-native';
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -30,6 +24,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/build/MaterialCommunityIc
 import axios, { AxiosError } from 'axios';
 import * as turf from '@turf/turf';
 import type { Position } from 'geojson';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
@@ -47,6 +42,124 @@ import {
   saveOfflineSubmission,
   isNetworkError,
 } from '../../../utils/OfflineSubmissionManager';
+
+// Draft data types for FarmPlotCoordinates
+export type FarmPlotCoordinatesDraftData = {
+  areaId: number;
+  farmId?: number; // For editing existing farms
+  soilType: string;
+  soilSuitability: string;
+  coordinates: Coordinate[];
+  hectares: number;
+  status: string;
+  createdAt: number;
+};
+
+export type StoredFarmPlotCoordinatesDraft = FarmPlotCoordinatesDraftData & {
+  draftKey: string;
+};
+
+const FARM_DRAFT_KEY_PREFIX = 'farmPlotCoordinates_draft_';
+
+/**
+ * Save a draft for FarmPlotCoordinates
+ */
+export const saveFarmPlotCoordinatesDraft = async (
+  draftData: FarmPlotCoordinatesDraftData,
+): Promise<string> => {
+  try {
+    const draftKey = `${FARM_DRAFT_KEY_PREFIX}${draftData.areaId}_${Date.now()}`;
+
+    const finalDraft: StoredFarmPlotCoordinatesDraft = {
+      ...draftData,
+      draftKey,
+    };
+
+    // Save the draft
+    await AsyncStorage.setItem(draftKey, JSON.stringify(finalDraft));
+
+    // Keep a list of all FarmPlotCoordinates drafts
+    let draftKeys = await AsyncStorage.getItem(
+      'farmPlotCoordinates_draft_keys',
+    );
+    let keys: string[] = [];
+    if (draftKeys) {
+      keys = JSON.parse(draftKeys);
+    }
+    if (!keys.includes(draftKey)) {
+      keys.push(draftKey);
+    }
+    await AsyncStorage.setItem(
+      'farmPlotCoordinates_draft_keys',
+      JSON.stringify(keys),
+    );
+
+    Alert.alert('Draft Saved', 'Farm plot draft saved locally.');
+    return draftKey;
+  } catch (error) {
+    console.error('Failed to save FarmPlotCoordinates draft:', error);
+    Alert.alert('Error', `Failed to save draft.\n${error}`);
+    throw error;
+  }
+};
+
+/**
+ * Load all FarmPlotCoordinates drafts
+ */
+export const loadFarmPlotCoordinatesDrafts = async (): Promise<
+  StoredFarmPlotCoordinatesDraft[]
+> => {
+  try {
+    let draftKeys = await AsyncStorage.getItem(
+      'farmPlotCoordinates_draft_keys',
+    );
+    if (!draftKeys) {
+      return [];
+    }
+
+    const keys: string[] = JSON.parse(draftKeys);
+    const drafts: StoredFarmPlotCoordinatesDraft[] = [];
+
+    for (const key of keys) {
+      const draftData = await AsyncStorage.getItem(key);
+      if (draftData) {
+        drafts.push(JSON.parse(draftData));
+      }
+    }
+
+    return drafts.sort((a, b) => b.createdAt - a.createdAt);
+  } catch (error) {
+    console.error('Failed to load FarmPlotCoordinates drafts:', error);
+    return [];
+  }
+};
+
+/**
+ * Delete a FarmPlotCoordinates draft
+ */
+export const deleteFarmPlotCoordinatesDraft = async (draftKey: string) => {
+  try {
+    await AsyncStorage.removeItem(draftKey);
+
+    // Remove from draft keys list
+    let draftKeys = await AsyncStorage.getItem(
+      'farmPlotCoordinates_draft_keys',
+    );
+    if (draftKeys) {
+      let keys: string[] = JSON.parse(draftKeys);
+      keys = keys.filter((k) => k !== draftKey);
+      await AsyncStorage.setItem(
+        'farmPlotCoordinates_draft_keys',
+        JSON.stringify(keys),
+      );
+    }
+
+    Alert.alert('Success', 'Draft deleted.');
+  } catch (error) {
+    console.error('Failed to delete draft:', error);
+    Alert.alert('Error', 'Failed to delete draft.');
+  }
+};
 
 // ============================================================================
 // COORDINATE CONVERSION & VALIDATION
@@ -401,6 +514,9 @@ const FarmPlotCoordinates = () => {
 
   // New farm creation mode (distinct from edit mode)
   const [isCreatingNewFarmPlot, setIsCreatingNewFarmPlot] = useState(false);
+
+  // Track unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Pan responder for draggable modal
   const panY = useRef(new Animated.Value(0)).current;
@@ -1225,6 +1341,32 @@ const FarmPlotCoordinates = () => {
     fetchAreaAndFarms();
   }, [fetchAreaAndFarms]);
 
+  // Load draft data if provided via route params
+  useEffect(() => {
+    const draftData = route.params?.draftData;
+    if (draftData) {
+      setPoints(draftData.coordinates || []);
+      setSoilType(draftData.soilType || '');
+      setSoilSuitability(draftData.soilSuitability || '');
+      setHectares(draftData.hectares?.toString() || '0.00');
+      if (draftData.coordinates && draftData.coordinates.length >= 3) {
+        setIsComplete(true);
+      }
+      // If editing an existing farm, set the farmId
+      if (draftData.farmId) {
+        setSelectedFarmId(draftData.farmId);
+      } else {
+        // New farm creation mode
+        setIsCreatingNewFarmPlot(true);
+      }
+    }
+  }, [route.params?.draftData]);
+
+  // Track unsaved changes whenever points or form data changes
+  useEffect(() => {
+    setHasUnsavedChanges(true);
+  }, [points, soilType, soilSuitability]);
+
   const handleMapReady = useCallback(() => {
     if (
       mapRef.current &&
@@ -1242,10 +1384,6 @@ const FarmPlotCoordinates = () => {
       }
     }
   }, [areaData]);
-
-  const hasUnsavedChanges = useMemo(() => {
-    return undoStack.length > 0 || redoStack.length > 0;
-  }, [undoStack.length, redoStack.length]);
 
   const handleConfirmUpdate = () => {
     if (!isCreatingNewFarmPlot && !farmId) {
@@ -1422,6 +1560,33 @@ const FarmPlotCoordinates = () => {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (!areaData || !areaId) {
+      Alert.alert('Error', 'Area data is missing.');
+      return;
+    }
+
+    // Allow saving at any point, even with partial data
+    // Just save what the user has entered so far
+    const draftData: FarmPlotCoordinatesDraftData = {
+      areaId: areaId,
+      farmId: farmId,
+      soilType: soilType,
+      soilSuitability: soilSuitability,
+      coordinates: points,
+      hectares: parseFloat(hectares) || 0,
+      status: 'Inactive',
+      createdAt: Date.now(),
+    };
+
+    try {
+      await saveFarmPlotCoordinatesDraft(draftData);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error saving draft:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={localStyles.centerContainer}>
@@ -1471,7 +1636,7 @@ const FarmPlotCoordinates = () => {
     <SafeAreaView
       style={{ flex: 1, backgroundColor: Styles.background.backgroundColor }}
     >
-      {/* --- HEADER --- */}
+      {/* --- HEADER WITH SAVE DRAFT BUTTON --- */}
       <View style={localStyles.headerContainer}>
         <TouchableOpacity
           onPress={() => {
@@ -1741,6 +1906,26 @@ const FarmPlotCoordinates = () => {
                 name="plus-circle"
                 size={30}
                 color={isCreatingNewFarmPlot ? 'white' : 'white'}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSaveDraft}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: hasUnsavedChanges
+                    ? '#F4D03F'
+                    : Styles.inputFields.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+              disabled={!areaData}
+            >
+              <Ionicons
+                name="save"
+                size={24}
+                color={hasUnsavedChanges ? 'black' : 'grey'}
               />
             </TouchableOpacity>
 
@@ -2454,6 +2639,12 @@ const localStyles = StyleSheet.create({
     color: Styles.text.color,
     textAlign: 'center',
   },
+  headerButton: {
+    padding: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   infoPanel: {
     maxHeight: 120,
     backgroundColor: '#f5f5f5',
@@ -2484,13 +2675,13 @@ const localStyles = StyleSheet.create({
   },
   floatingControlsContainer: {
     position: 'absolute',
-    top: 110,
-    right: 10,
-    left: 10,
-    zIndex: 1,
-    paddingTop: 10,
-    paddingRight: 10,
-    paddingLeft: 10,
+    top: 130,
+    right: 15,
+    left: 15,
+    zIndex: 100,
+    paddingTop: 0,
+    paddingRight: 0,
+    paddingLeft: 0,
     flexDirection: 'row',
   },
   actionButton: {

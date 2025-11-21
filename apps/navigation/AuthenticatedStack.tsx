@@ -15,6 +15,8 @@ import AccountSettingsScreen from '../(pages)/auth/usr/AccountSettings';
 import MapDetailsUpdate from '../(pages)/auth/usr/MapDetailsUpdate';
 import MapCoordinatesUpdate from '../(pages)/auth/usr/MapCoordinatesUpdate';
 import FarmPlotCoordinates from '../(pages)/auth/usr/FarmPlotCoordinates';
+import MapCoordinatesUpdateDraftsPage from '../(pages)/auth/usr/MapCoordinatesUpdateDraftsPage';
+import FarmPlotCoordinatesDraftsPage from '../(pages)/auth/usr/FarmPlotCoordinatesDraftsPage';
 import { PointsProvider } from '../context/PointsContext';
 
 import type { RootStackParamList } from './types';
@@ -94,6 +96,16 @@ function AuthenticatedUserStack() {
         <AuthenticatedUserFlowStack.Screen
           name="FarmPlotCoordinates"
           component={FarmPlotCoordinates}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="MapCoordinatesUpdateDraftsPage"
+          component={MapCoordinatesUpdateDraftsPage}
+          options={{ title: 'Area Coordinate Drafts' }}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="FarmPlotCoordinatesDraftsPage"
+          component={FarmPlotCoordinatesDraftsPage}
+          options={{ title: 'Farm Plot Drafts' }}
         />
       </AuthenticatedUserFlowStack.Navigator>
     </PointsProvider>

@@ -69,8 +69,10 @@ export type RootStackParamList = {
   AuthenticatedStack: undefined;
   MapPreview: { areaId: number } | undefined;
   MapDetailsUpdate: { areaId: number } | undefined;
-  MapCoordinatesUpdate: { areaId: number } | undefined;
-  FarmPlotCoordinates: { areaId: number; farmId?: number } | undefined;
+  MapCoordinatesUpdate: { areaId: number; draftData?: any } | undefined;
+  MapCoordinatesUpdateDraftsPage: undefined;
+  FarmPlotCoordinates: { areaId: number; farmId?: number; draftData?: any } | undefined;
+  FarmPlotCoordinatesDraftsPage: undefined;
   ImageViewerScreen:
     | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
     | undefined;
@@ -126,9 +128,17 @@ export type MapCoordinatesUpdateProps = NativeStackScreenProps<
   RootStackParamList,
   'MapCoordinatesUpdate'
 >;
+export type MapCoordinatesUpdateDraftsPageProps = NativeStackScreenProps<
+  RootStackParamList,
+  'MapCoordinatesUpdateDraftsPage'
+>;
 export type FarmPlotCoordinatesProps = NativeStackScreenProps<
   RootStackParamList,
   'FarmPlotCoordinates'
+>;
+export type FarmPlotCoordinatesDraftsPageProps = NativeStackScreenProps<
+  RootStackParamList,
+  'FarmPlotCoordinatesDraftsPage'
 >;
 export type ImageViewerProps = NativeStackScreenProps<
   RootStackParamList,

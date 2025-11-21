@@ -115,6 +115,25 @@ const localStyles = StyleSheet.create({
     color: Styles.buttonText.color,
     fontWeight: 'bold',
   },
+  draftButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  draftButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F4D03F',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 5,
+  },
+  draftButtonText: {
+    fontWeight: 'bold',
+    fontSize: 12,
+    color: '#000',
+  },
 });
 
 const ITEMS_PER_PAGE = 10;
@@ -256,7 +275,22 @@ export default function MapEntriesScreen() {
           <View style={localStyles.headerTitleContainer}>
             <Text style={localStyles.title}>Map Entries</Text>
           </View>
-          <View style={{ width: 34 }} />
+          <View style={localStyles.draftButtonsContainer}>
+            <TouchableOpacity
+              style={localStyles.draftButton}
+              onPress={() => navigation.navigate('MapCoordinatesUpdateDraftsPage')}
+            >
+              <Ionicons name="document" size={14} color="#000" />
+              <Text style={localStyles.draftButtonText}>Area</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={localStyles.draftButton}
+              onPress={() => navigation.navigate('FarmPlotCoordinatesDraftsPage')}
+            >
+              <Ionicons name="document" size={14} color="#000" />
+              <Text style={localStyles.draftButtonText}>Farm</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <TextInput
           style={[Styles.inputFields, { width: '100%' }]}

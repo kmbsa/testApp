@@ -7,13 +7,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -28,6 +22,7 @@ import type {
   MultiPolygon,
   Position,
 } from 'geojson';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
@@ -40,6 +35,124 @@ import type {
 } from '../../../navigation/types';
 
 import gadm41_PHL_1 from '../../../../assets/data/gadm41_PHL_1.json';
+
+// Draft data types for MapCoordinatesUpdate
+export type MapCoordinatesUpdateDraftData = {
+  areaId: number;
+  areaName: string;
+  coordinates: Coordinate[];
+  province: string | null;
+  region: string | null;
+  hectares: number;
+  createdAt: number;
+};
+
+export type StoredMapCoordinatesUpdateDraft = MapCoordinatesUpdateDraftData & {
+  draftKey: string;
+};
+
+const DRAFT_KEY_PREFIX = 'mapCoordinatesUpdate_draft_';
+
+/**
+ * Save a draft for MapCoordinatesUpdate
+ */
+export const saveMapCoordinatesUpdateDraft = async (
+  draftData: MapCoordinatesUpdateDraftData,
+): Promise<string> => {
+  try {
+    const draftKey = `${DRAFT_KEY_PREFIX}${draftData.areaId}_${Date.now()}`;
+
+    const finalDraft: StoredMapCoordinatesUpdateDraft = {
+      ...draftData,
+      draftKey,
+    };
+
+    // Save the draft
+    await AsyncStorage.setItem(draftKey, JSON.stringify(finalDraft));
+
+    // Keep a list of all MapCoordinatesUpdate drafts
+    let draftKeys = await AsyncStorage.getItem(
+      'mapCoordinatesUpdate_draft_keys',
+    );
+    let keys: string[] = [];
+    if (draftKeys) {
+      keys = JSON.parse(draftKeys);
+    }
+    if (!keys.includes(draftKey)) {
+      keys.push(draftKey);
+    }
+    await AsyncStorage.setItem(
+      'mapCoordinatesUpdate_draft_keys',
+      JSON.stringify(keys),
+    );
+
+    Alert.alert('Draft Saved', 'Map coordinates draft saved locally.');
+    return draftKey;
+  } catch (error) {
+    console.error('Failed to save MapCoordinatesUpdate draft:', error);
+    Alert.alert('Error', `Failed to save draft.\n${error}`);
+    throw error;
+  }
+};
+
+/**
+ * Load all MapCoordinatesUpdate drafts
+ */
+export const loadMapCoordinatesUpdateDrafts = async (): Promise<
+  StoredMapCoordinatesUpdateDraft[]
+> => {
+  try {
+    let draftKeys = await AsyncStorage.getItem(
+      'mapCoordinatesUpdate_draft_keys',
+    );
+    if (!draftKeys) {
+      return [];
+    }
+
+    const keys: string[] = JSON.parse(draftKeys);
+    const drafts: StoredMapCoordinatesUpdateDraft[] = [];
+
+    for (const key of keys) {
+      const draftData = await AsyncStorage.getItem(key);
+      if (draftData) {
+        const parsedDraft = JSON.parse(draftData);
+        drafts.push(parsedDraft);
+      }
+    }
+
+    return drafts.sort((a, b) => b.createdAt - a.createdAt);
+  } catch (error) {
+    console.error('Failed to load MapCoordinatesUpdate drafts:', error);
+    return [];
+  }
+};
+
+/**
+ * Delete a MapCoordinatesUpdate draft
+ */
+export const deleteMapCoordinatesUpdateDraft = async (draftKey: string) => {
+  try {
+    await AsyncStorage.removeItem(draftKey);
+
+    // Remove from draft keys list
+    let draftKeys = await AsyncStorage.getItem(
+      'mapCoordinatesUpdate_draft_keys',
+    );
+    if (draftKeys) {
+      let keys: string[] = JSON.parse(draftKeys);
+      keys = keys.filter((k) => k !== draftKey);
+      await AsyncStorage.setItem(
+        'mapCoordinatesUpdate_draft_keys',
+        JSON.stringify(keys),
+      );
+    }
+
+    Alert.alert('Success', 'Draft deleted.');
+  } catch (error) {
+    console.error('Failed to delete draft:', error);
+    Alert.alert('Error', 'Failed to delete draft.');
+  }
+};
 
 /**
  * Finds which line segment the tap point is closest to.
@@ -326,6 +439,12 @@ const MapCoordinatesUpdate = () => {
 
   const [isComplete, setIsComplete] = useState(true);
 
+  // Use a ref to always have the current points value
+  const pointsRef = useRef<Coordinate[]>([]);
+  useEffect(() => {
+    pointsRef.current = points;
+  }, [points]);
+
   const handleStateChange = (newPoints: Coordinate[]) => {
     setUndoStack((prev) => [points, ...prev]);
     setRedoStack([]);
@@ -510,6 +629,17 @@ const MapCoordinatesUpdate = () => {
     fetchAreaDetails();
   }, [fetchAreaDetails]);
 
+  // Load draft data if provided via route params
+  useEffect(() => {
+    const draftData = route.params?.draftData;
+    if (draftData) {
+      setPoints(draftData.coordinates || []);
+      if (draftData.coordinates && draftData.coordinates.length >= 3) {
+        setIsComplete(true);
+      }
+    }
+  }, [route.params?.draftData]);
+
   const handleMapReady = useCallback(() => {
     if (mapRef.current && points.length > 0) {
       mapRef.current.fitToCoordinates(points, {
@@ -519,9 +649,12 @@ const MapCoordinatesUpdate = () => {
     }
   }, [points]);
 
-  const hasUnsavedChanges = useMemo(() => {
-    return undoStack.length > 0 || redoStack.length > 0;
-  }, [undoStack.length, redoStack.length]);
+  // Track unsaved changes whenever points or state updates
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    setHasUnsavedChanges(true);
+  }, [points]);
 
   const handleConfirmUpdate = () => {
     if (points.length < 3) {
@@ -606,6 +739,46 @@ const MapCoordinatesUpdate = () => {
       );
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!areaData) {
+      Alert.alert('Error', 'Area data is missing.');
+      return;
+    }
+
+    // Use the ref to get the actual current points value (not stale closure)
+    const currentPoints = pointsRef.current;
+
+    // Allow saving at any point, even with partial coordinates
+    let newHectares = 0;
+    let province: string | null = null;
+    let region: string | null = null;
+
+    // Only calculate these if we have at least 3 points (complete polygon)
+    if (currentPoints.length >= 3) {
+      newHectares = calculateAreaInHectares(currentPoints);
+      const locationData = lookupAreaLocation(currentPoints);
+      province = locationData.province;
+      region = locationData.region;
+    }
+
+    const draftData: MapCoordinatesUpdateDraftData = {
+      areaId: areaData.Area_ID,
+      areaName: areaData.Area_Name,
+      coordinates: currentPoints,
+      province: province,
+      region: region,
+      hectares: newHectares,
+      createdAt: Date.now(),
+    };
+
+    try {
+      await saveMapCoordinatesUpdateDraft(draftData);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Error saving draft:', error);
     }
   };
 
@@ -736,8 +909,29 @@ const MapCoordinatesUpdate = () => {
         )}
       </MapView>
 
-      {/* --- FLOATING CONTROLS --- */}
-      <View style={localStyles.floatingControlsContainer}>
+      {/* --- MAP OVERLAY CONTROLS (Save Draft + Undo/Redo) --- */}
+      <View style={localStyles.mapControlsContainer}>
+        {/* Save Draft Button */}
+        <TouchableOpacity
+          onPress={handleSaveDraft}
+          style={[
+            localStyles.actionButton,
+            {
+              backgroundColor: hasUnsavedChanges
+                ? '#F4D03F'
+                : Styles.inputFields.backgroundColor,
+              marginRight: 10,
+            },
+          ]}
+          disabled={!areaData}
+        >
+          <Ionicons
+            name="save"
+            size={24}
+            color={hasUnsavedChanges ? 'black' : 'grey'}
+          />
+        </TouchableOpacity>
+
         {/* Undo/Redo */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
@@ -854,18 +1048,19 @@ const localStyles = StyleSheet.create({
     color: Styles.text.color,
     textAlign: 'center',
   },
-  floatingControlsContainer: {
+  mapControlsContainer: {
     position: 'absolute',
-    top: 110,
-    right: 10,
-    zIndex: 1,
-    paddingTop: 10,
-    paddingRight: 10,
+    top: 120,
+    left: 15,
+    zIndex: 100,
     flexDirection: 'row',
+    alignItems: 'center',
   },
   actionButton: {
-    padding: 8,
+    padding: 10,
     borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   updateButton: {
     position: 'absolute',
