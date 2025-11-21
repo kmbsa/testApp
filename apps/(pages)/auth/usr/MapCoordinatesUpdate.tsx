@@ -561,6 +561,30 @@ const MapCoordinatesUpdate = () => {
   };
 
   const fetchAreaDetails = useCallback(async () => {
+    // Skip API call if draft data is provided (offline mode)
+    const draftData = route.params?.draftData;
+    if (draftData) {
+      setAreaData({
+        Area_ID: draftData.areaId,
+        Area_Name: draftData.areaName,
+        Area_Hectares: draftData.hectares,
+        Province: draftData.province || '',
+        Region: draftData.region || '',
+        Area_Organization: '',
+        status: null as any,
+        coordinates: draftData.coordinates.map((c: Coordinate) => ({
+          Latitude: c.latitude,
+          Longitude: c.longitude,
+        })),
+      } as unknown as AreaEntry);
+      setPoints(draftData.coordinates);
+      setIsLoading(false);
+      if (draftData.coordinates.length >= 3) {
+        setIsComplete(true);
+      }
+      return;
+    }
+
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
@@ -623,22 +647,11 @@ const MapCoordinatesUpdate = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [areaId, userToken, signOut]);
+  }, [areaId, userToken, signOut, route.params?.draftData]);
 
   useEffect(() => {
     fetchAreaDetails();
   }, [fetchAreaDetails]);
-
-  // Load draft data if provided via route params
-  useEffect(() => {
-    const draftData = route.params?.draftData;
-    if (draftData) {
-      setPoints(draftData.coordinates || []);
-      if (draftData.coordinates && draftData.coordinates.length >= 3) {
-        setIsComplete(true);
-      }
-    }
-  }, [route.params?.draftData]);
 
   const handleMapReady = useCallback(() => {
     if (mapRef.current && points.length > 0) {

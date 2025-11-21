@@ -1273,6 +1273,38 @@ const FarmPlotCoordinates = () => {
   };
 
   const fetchAreaAndFarms = useCallback(async () => {
+    // Skip API call if draft data is provided (offline mode)
+    const draftData = route.params?.draftData;
+    if (draftData) {
+      setAreaData({
+        Area_ID: draftData.areaId,
+        Area_Name: '',
+        Area_Hectares: 0,
+        Province: '',
+        Region: '',
+        Area_Organization: '',
+        status: null as any,
+        coordinates: draftData.coordinates.map((c: Coordinate) => ({
+          Latitude: c.latitude,
+          Longitude: c.longitude,
+        })),
+      } as unknown as AreaEntry);
+      setPoints(draftData.coordinates || []);
+      setSoilType(draftData.soilType || '');
+      setSoilSuitability(draftData.soilSuitability || '');
+      setHectares(draftData.hectares?.toString() || '0.00');
+      setIsLoading(false);
+      if (draftData.coordinates && draftData.coordinates.length >= 3) {
+        setIsComplete(true);
+      }
+      if (draftData.farmId) {
+        setSelectedFarmId(draftData.farmId);
+      } else {
+        setIsCreatingNewFarmPlot(true);
+      }
+      return;
+    }
+
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
@@ -1335,32 +1367,11 @@ const FarmPlotCoordinates = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [areaId, userToken, signOut, farmId]);
+  }, [areaId, userToken, signOut, farmId, route.params?.draftData]);
 
   useEffect(() => {
     fetchAreaAndFarms();
   }, [fetchAreaAndFarms]);
-
-  // Load draft data if provided via route params
-  useEffect(() => {
-    const draftData = route.params?.draftData;
-    if (draftData) {
-      setPoints(draftData.coordinates || []);
-      setSoilType(draftData.soilType || '');
-      setSoilSuitability(draftData.soilSuitability || '');
-      setHectares(draftData.hectares?.toString() || '0.00');
-      if (draftData.coordinates && draftData.coordinates.length >= 3) {
-        setIsComplete(true);
-      }
-      // If editing an existing farm, set the farmId
-      if (draftData.farmId) {
-        setSelectedFarmId(draftData.farmId);
-      } else {
-        // New farm creation mode
-        setIsCreatingNewFarmPlot(true);
-      }
-    }
-  }, [route.params?.draftData]);
 
   // Track unsaved changes whenever points or form data changes
   useEffect(() => {

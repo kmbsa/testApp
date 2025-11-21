@@ -25,15 +25,18 @@ const MapCoordinatesUpdateDraftsPage = () => {
     useNavigation<MapCoordinatesUpdateDraftsPageProps['navigation']>();
   const [drafts, setDrafts] = useState<StoredMapCoordinatesUpdateDraft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadDrafts = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const loadedDrafts = await loadMapCoordinatesUpdateDrafts();
       setDrafts(loadedDrafts);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Failed to load drafts:', error);
-      Alert.alert('Error', 'Failed to load drafts');
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +122,33 @@ const MapCoordinatesUpdateDraftsPage = () => {
             size="large"
             color={Styles.button.backgroundColor}
           />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={localStyles.container}>
+        <View style={localStyles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={Styles.text.color} />
+          </TouchableOpacity>
+          <Text style={localStyles.headerTitle}>
+            Map Coordinate Update Drafts
+          </Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <View style={localStyles.centerContainer}>
+          <Text style={localStyles.emptyText}>Error Loading Drafts</Text>
+          <Text style={localStyles.emptySubText}>{error}</Text>
+          <TouchableOpacity
+            style={[localStyles.draftButton, { marginTop: 20 }]}
+            onPress={() => loadDrafts()}
+          >
+            <Text style={localStyles.draftButtonText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -241,6 +271,18 @@ const localStyles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginHorizontal: 20,
+  },
+  draftButton: {
+    backgroundColor: Styles.button.backgroundColor,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  draftButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });
 
