@@ -179,7 +179,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Entypo, EvilIcons } from '@expo/vector-icons';
+import { Entypo, EvilIcons, FontAwesome } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -1565,11 +1565,20 @@ export default function Map() {
             marginTop: 0,
             alignSelf: 'center',
             opacity: isComplete ? 0.5 : 1,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
           },
         ]}
         onPress={getCurrentUserLocation}
         disabled={isComplete}
       >
+        <FontAwesome
+          name="location-arrow"
+          size={24}
+          color={Styles.buttonText.color}
+          style={{ marginRight: 5 }}
+        />
         <Text style={Styles.buttonText}>Mark My Location</Text>
       </TouchableOpacity>
 

@@ -72,16 +72,23 @@ const FarmPlotCoordinatesDraftsPage = () => {
   };
 
   const handleOpenDraft = (draft: StoredFarmPlotCoordinatesDraft) => {
-    // Navigate to FarmPlotCoordinates with the draft data
+    // Navigate to FarmPlotCoordinates with the complete draft data
+    // INCLUDING area boundaries and existing farms for offline support
     navigation.navigate('FarmPlotCoordinates', {
       areaId: draft.areaId,
       farmId: draft.farmId,
       draftData: {
+        areaId: draft.areaId,
+        areaName: draft.areaName,
         coordinates: draft.coordinates,
         soilType: draft.soilType,
         soilSuitability: draft.soilSuitability,
         hectares: draft.hectares,
         status: draft.status,
+        areaBoundaries: draft.areaBoundaries, // Land claim boundaries
+        existingFarms: draft.existingFarms, // Other farm plots
+        farmId: draft.farmId,
+        createdAt: draft.createdAt,
       },
     });
   };

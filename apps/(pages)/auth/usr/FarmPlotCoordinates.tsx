@@ -27,6 +27,7 @@ import type { Position } from 'geojson';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_URL } from '@env';
+import { Entypo } from '@expo/vector-icons';
 import { useAuth } from '../../../context/AuthContext';
 import Styles from '../../../styles/styles';
 import FormDropdown from '../../../components/FormDropdown';
@@ -53,6 +54,17 @@ export type FarmPlotCoordinatesDraftData = {
   hectares: number;
   status: string;
   createdAt: number;
+  // Area context for offline support
+  areaName?: string;
+  areaBoundaries?: BackendCoordinate[]; // Area polygon coordinates for map display
+  existingFarms?: Array<{
+    Farm_ID: number;
+    Soil_Type: string;
+    Soil_Suitability: string;
+    Hectares: string;
+    Status: string;
+    coordinates: BackendCoordinate[];
+  }>; // Existing farms to display on map
 };
 
 export type StoredFarmPlotCoordinatesDraft = FarmPlotCoordinatesDraftData & {
@@ -62,7 +74,8 @@ export type StoredFarmPlotCoordinatesDraft = FarmPlotCoordinatesDraftData & {
 const FARM_DRAFT_KEY_PREFIX = 'farmPlotCoordinates_draft_';
 
 /**
- * Save a draft for FarmPlotCoordinates
+ * Save a draft for FarmPlotCoordinates with area context
+ * Includes area boundaries and existing farms for complete offline support
  */
 export const saveFarmPlotCoordinatesDraft = async (
   draftData: FarmPlotCoordinatesDraftData,
@@ -1273,55 +1286,33 @@ const FarmPlotCoordinates = () => {
   };
 
   const fetchAreaAndFarms = useCallback(async () => {
-    // Skip API call if draft data is provided (offline mode)
+    // Check if draft data is provided
     const draftData = route.params?.draftData;
-    if (draftData) {
-      setAreaData({
-        Area_ID: draftData.areaId,
-        Area_Name: '',
-        Area_Hectares: 0,
-        Province: '',
-        Region: '',
-        Area_Organization: '',
-        status: null as any,
-        coordinates: draftData.coordinates.map((c: Coordinate) => ({
-          Latitude: c.latitude,
-          Longitude: c.longitude,
-        })),
-      } as unknown as AreaEntry);
-      setPoints(draftData.coordinates || []);
-      setSoilType(draftData.soilType || '');
-      setSoilSuitability(draftData.soilSuitability || '');
-      setHectares(draftData.hectares?.toString() || '0.00');
-      setIsLoading(false);
-      if (draftData.coordinates && draftData.coordinates.length >= 3) {
-        setIsComplete(true);
-      }
-      if (draftData.farmId) {
-        setSelectedFarmId(draftData.farmId);
-      } else {
-        setIsCreatingNewFarmPlot(true);
-      }
-      return;
-    }
 
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
       return;
     }
-    if (!userToken) {
+
+    // If no token but have draft data, use it as fallback (but we'll try to fetch first)
+    if (!userToken && !draftData) {
       setError('Authentication token is missing. Please log in.');
       setIsLoading(false);
       return;
     }
 
     try {
+      // Attempt to fetch area data (even if no token, just to try)
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      if (userToken) {
+        headers.Authorization = `Bearer ${userToken}`;
+      }
+
       const response = await axios.get(`${API_URL}/area/${areaId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`,
-        },
+        headers,
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -1347,8 +1338,22 @@ const FarmPlotCoordinates = () => {
 
       setFarms(farmsList);
 
-      // If editing existing farm, load its coordinates
-      if (farmId && farmsList.length > 0) {
+      // If loading from draft, use draft data for the current farm plot
+      if (draftData) {
+        setPoints(draftData.coordinates || []);
+        setSoilType(draftData.soilType || '');
+        setSoilSuitability(draftData.soilSuitability || '');
+        setHectares(draftData.hectares?.toString() || '0.00');
+        if (draftData.coordinates && draftData.coordinates.length >= 3) {
+          setIsComplete(true);
+        }
+        if (draftData.farmId) {
+          setSelectedFarmId(draftData.farmId);
+        } else {
+          setIsCreatingNewFarmPlot(true);
+        }
+      } else if (farmId && farmsList.length > 0) {
+        // If editing existing farm, load its coordinates from the API response
         const farmToEdit = farmsList.find((f) => f.Farm_ID === farmId);
         if (farmToEdit && farmToEdit.coordinates.length > 0) {
           const farmCoords: Coordinate[] =
@@ -1361,6 +1366,73 @@ const FarmPlotCoordinates = () => {
       const error = err as AxiosError;
       const apiErrorMessage = (error.response?.data as { message?: string })
         ?.message;
+
+      // If online fetch fails but we have draft data, use offline mode
+      if (draftData && isNetworkError(error)) {
+        console.warn(
+          'Network error fetching area, using draft data as fallback',
+        );
+        // Use area boundaries from draft if available, otherwise use farm coordinates
+        setAreaData({
+          Area_ID: draftData.areaId,
+          Area_Name: draftData.areaName || '',
+          Area_Hectares: 0,
+          Province: '',
+          Region: '',
+          Area_Organization: '',
+          status: null as any,
+          // Use saved area boundaries from draft for map display
+          coordinates:
+            draftData.areaBoundaries && draftData.areaBoundaries.length > 0
+              ? draftData.areaBoundaries
+              : draftData.coordinates.map((c: Coordinate) => ({
+                  Latitude: c.latitude,
+                  Longitude: c.longitude,
+                })),
+        } as unknown as AreaEntry);
+        // Load existing farms from draft if available
+        const farmsList: Farm[] = (draftData.existingFarms || []).map(
+          (f: any) => ({
+            Farm_ID: f.Farm_ID,
+            Soil_Type: f.Soil_Type,
+            Soil_Suitability: f.Soil_Suitability,
+            Hectares: f.Hectares,
+            Status: f.Status,
+            coordinates: f.coordinates || [],
+          }),
+        );
+        setFarms(farmsList);
+        setPoints(draftData.coordinates || []);
+        setSoilType(draftData.soilType || '');
+        setSoilSuitability(draftData.soilSuitability || '');
+        setHectares(draftData.hectares?.toString() || '0.00');
+        setIsLoading(false);
+        if (draftData.coordinates && draftData.coordinates.length >= 3) {
+          setIsComplete(true);
+        }
+        if (draftData.farmId) {
+          setSelectedFarmId(draftData.farmId);
+        } else {
+          setIsCreatingNewFarmPlot(true);
+        }
+        // Show warning that we're using cached data
+        if (
+          draftData.areaBoundaries &&
+          draftData.areaBoundaries.length > 0 &&
+          draftData.existingFarms &&
+          draftData.existingFarms.length > 0
+        ) {
+          console.warn(
+            'Working offline: loaded area boundaries and existing farms from draft',
+          );
+        } else {
+          console.warn(
+            'Working offline: draft data available but area context may be limited',
+          );
+        }
+        return;
+      }
+
       setError(
         apiErrorMessage || 'Failed to load area details. Check network or API.',
       );
@@ -1578,7 +1650,7 @@ const FarmPlotCoordinates = () => {
     }
 
     // Allow saving at any point, even with partial data
-    // Just save what the user has entered so far
+    // Include area context (boundaries + existing farms) for offline support
     const draftData: FarmPlotCoordinatesDraftData = {
       areaId: areaId,
       farmId: farmId,
@@ -1588,6 +1660,17 @@ const FarmPlotCoordinates = () => {
       hectares: parseFloat(hectares) || 0,
       status: 'Inactive',
       createdAt: Date.now(),
+      // Include area context for offline map display
+      areaName: areaData.Area_Name,
+      areaBoundaries: areaData.coordinates, // Land boundaries
+      existingFarms: farms.map((f) => ({
+        Farm_ID: f.Farm_ID,
+        Soil_Type: f.Soil_Type,
+        Soil_Suitability: f.Soil_Suitability,
+        Hectares: f.Hectares,
+        Status: f.Status,
+        coordinates: f.coordinates,
+      })), // Other farm plots
     };
 
     try {
@@ -1933,7 +2016,7 @@ const FarmPlotCoordinates = () => {
               ]}
               disabled={!areaData}
             >
-              <Ionicons
+              <Entypo
                 name="save"
                 size={24}
                 color={hasUnsavedChanges ? 'black' : 'grey'}

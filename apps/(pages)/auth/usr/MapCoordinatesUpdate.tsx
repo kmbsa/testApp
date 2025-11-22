@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Entypo } from '@expo/vector-icons';
 import Ionicons from '@expo/vector-icons/build/Ionicons';
 import EvilIcons from '@expo/vector-icons/build/EvilIcons';
 import MaterialCommunityIcons from '@expo/vector-icons/build/MaterialCommunityIcons';
@@ -33,6 +34,7 @@ import type {
   AreaEntry,
   BackendCoordinate,
 } from '../../../navigation/types';
+import { isNetworkError } from '../../../utils/OfflineSubmissionManager';
 
 import gadm41_PHL_1 from '../../../../assets/data/gadm41_PHL_1.json';
 
@@ -561,47 +563,33 @@ const MapCoordinatesUpdate = () => {
   };
 
   const fetchAreaDetails = useCallback(async () => {
-    // Skip API call if draft data is provided (offline mode)
+    // Check if draft data is provided
     const draftData = route.params?.draftData;
-    if (draftData) {
-      setAreaData({
-        Area_ID: draftData.areaId,
-        Area_Name: draftData.areaName,
-        Area_Hectares: draftData.hectares,
-        Province: draftData.province || '',
-        Region: draftData.region || '',
-        Area_Organization: '',
-        status: null as any,
-        coordinates: draftData.coordinates.map((c: Coordinate) => ({
-          Latitude: c.latitude,
-          Longitude: c.longitude,
-        })),
-      } as unknown as AreaEntry);
-      setPoints(draftData.coordinates);
-      setIsLoading(false);
-      if (draftData.coordinates.length >= 3) {
-        setIsComplete(true);
-      }
-      return;
-    }
 
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
       return;
     }
-    if (!userToken) {
+
+    // If no token but have draft data, use it as fallback (but we'll try to fetch first)
+    if (!userToken && !draftData) {
       setError('Authentication token is missing. Please log in.');
       setIsLoading(false);
       return;
     }
 
     try {
+      // Attempt to fetch area data (even if no token, just to try)
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      if (userToken) {
+        headers.Authorization = `Bearer ${userToken}`;
+      }
+
       const response = await axios.get(`${API_URL}/area/${areaId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userToken}`,
-        },
+        headers,
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -630,17 +618,56 @@ const MapCoordinatesUpdate = () => {
       }));
       // -------------------------------------------------------------------
 
-      if (initialCoordinates.length < 3) {
-        setIsComplete(false);
+      // If loading from draft, use draft coordinates instead of API coordinates
+      if (draftData) {
+        setPoints(draftData.coordinates);
+        if (draftData.coordinates.length >= 3) {
+          setIsComplete(true);
+        }
       } else {
-        setIsComplete(true);
-      }
+        // Use API coordinates if not from draft
+        if (initialCoordinates.length < 3) {
+          setIsComplete(false);
+        } else {
+          setIsComplete(true);
+        }
 
-      setPoints(initialCoordinates);
+        setPoints(initialCoordinates);
+      }
     } catch (err: any) {
       const error = err as AxiosError;
       const apiErrorMessage = (error.response?.data as { message?: string })
         ?.message;
+
+      // If online fetch fails but we have draft data, use offline mode
+      if (draftData && isNetworkError(error)) {
+        console.warn(
+          'Network error fetching area, using draft data as fallback',
+        );
+        setAreaData({
+          Area_ID: draftData.areaId,
+          Area_Name: draftData.areaName,
+          Area_Hectares: draftData.hectares,
+          Province: draftData.province || '',
+          Region: draftData.region || '',
+          Area_Organization: '',
+          status: null as any,
+          coordinates: draftData.coordinates.map((c: Coordinate) => ({
+            Latitude: c.latitude,
+            Longitude: c.longitude,
+          })),
+        } as unknown as AreaEntry);
+        setPoints(draftData.coordinates);
+        setIsLoading(false);
+        if (draftData.coordinates.length >= 3) {
+          setIsComplete(true);
+        }
+        console.warn(
+          'Working offline: only draft data available, full context not loaded',
+        );
+        return;
+      }
+
       setError(
         apiErrorMessage || 'Failed to load details. Check network or API.',
       );
@@ -938,7 +965,7 @@ const MapCoordinatesUpdate = () => {
           ]}
           disabled={!areaData}
         >
-          <Ionicons
+          <Entypo
             name="save"
             size={24}
             color={hasUnsavedChanges ? 'black' : 'grey'}
