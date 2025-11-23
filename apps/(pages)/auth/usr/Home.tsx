@@ -68,6 +68,13 @@ function Home() {
         <Text style={Styles.buttonText}>Account Settings</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={Styles.button}
+        onPress={() => navigation.navigate('UserActivity')}
+      >
+        <Text style={Styles.buttonText}>User Activity</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={Styles.button} onPress={handleLogout}>
         <Text style={Styles.buttonText}>Logout</Text>
       </TouchableOpacity>

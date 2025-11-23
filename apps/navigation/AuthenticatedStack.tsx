@@ -10,6 +10,7 @@ import Weather from '../(pages)/auth/usr/Weather';
 import Test from '../(pages)/auth/tst/Test';
 import DraftsPage from '../(pages)/auth/usr/DraftsPage';
 import FarmActivityScreen from '../(pages)/auth/usr/FarmActivity';
+import UserActivityScreen from '../(pages)/auth/usr/UserActivity';
 import ImageViewerScreen from '../(pages)/auth/usr/ImageViewer';
 import AccountSettingsScreen from '../(pages)/auth/usr/AccountSettings';
 import MapDetailsUpdate from '../(pages)/auth/usr/MapDetailsUpdate';
@@ -69,6 +70,11 @@ function AuthenticatedUserStack() {
           name="FarmActivity"
           component={FarmActivityScreen}
           options={{ title: 'Farm Activity' }}
+        />
+        <AuthenticatedUserFlowStack.Screen
+          name="UserActivity"
+          component={UserActivityScreen}
+          options={{ title: 'Activity Log' }}
         />
         <AuthenticatedUserFlowStack.Screen
           name="ImageViewerScreen"

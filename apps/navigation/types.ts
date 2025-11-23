@@ -57,6 +57,19 @@ export type BackendPhoto = {
   Filepath: string;
 };
 
+export type ActivityLog = {
+  Activity_Log_ID: number;
+  User_ID: number;
+  Activity_Type: string;
+  Entity_Type: string;
+  Entity_ID: number | null;
+  Description: string;
+  Device: string;
+  IPv4_Address: string;
+  User_Agent: string;
+  Timestamp: string;
+};
+
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
@@ -81,6 +94,7 @@ export type RootStackParamList = {
   FarmActivity: { areaId: number; farmId?: number } | undefined;
   WeatherPreview: { location: Coordinate } | undefined;
   AccountSettings: undefined;
+  UserActivity: undefined;
   AuthTabs: undefined;
   Test: undefined;
 };
@@ -157,6 +171,10 @@ export type WeatherPreviewProps = NativeStackScreenProps<
 export type AccountSettingsProps = NativeStackScreenProps<
   RootStackParamList,
   'AccountSettings'
+>;
+export type UserActivityProps = NativeStackScreenProps<
+  RootStackParamList,
+  'UserActivity'
 >;
 export type TestScreenProps = NativeStackNavigationProp<
   RootStackParamList,
