@@ -788,7 +788,7 @@ const localStyles = StyleSheet.create({
     padding: 15,
   },
   detailsCard: {
-    backgroundColor: 'white',
+    backgroundColor: '#3D550C',
     borderRadius: 12,
     padding: 15,
     elevation: 2,
@@ -803,24 +803,24 @@ const localStyles = StyleSheet.create({
   detailsLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#999',
+    color: '#B8B89F',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 5,
   },
   detailsValue: {
     fontSize: 15,
-    color: Styles.text.color,
+    color: '#F4D03F',
     fontWeight: '500',
   },
   detailsValueLarge: {
     fontSize: 14,
-    color: Styles.text.color,
+    color: '#F4D03F',
     lineHeight: 20,
   },
   detailsValueSmall: {
     fontSize: 12,
-    color: '#666',
+    color: '#E8E8E8',
     lineHeight: 16,
   },
   divider: {
