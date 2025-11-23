@@ -50,6 +50,7 @@ export default function FarmActivityManagerScreen() {
   const { userToken: token } = useAuth();
 
   const areaId = (route.params as { areaId: number })?.areaId || 1;
+  const farmId = (route.params as { farmId: number })?.farmId || null;
 
   const [harvestRecords, setHarvestRecords] = useState<HarvestRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -78,7 +79,11 @@ export default function FarmActivityManagerScreen() {
 
     setIsLoading(true);
     try {
-      const url = `${API_URL}/area/farm_harvest/area_id=${areaId}`;
+      // Use farm_id endpoint if farmId is provided, otherwise use area_id endpoint
+      const url = farmId
+        ? `${API_URL}/area/farm_harvest/farm_id=${farmId}`
+        : `${API_URL}/area/farm_harvest/area_id=${areaId}`;
+      
       const response = await axios.get<{ harvests: HarvestRecord[] }>(url, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -101,7 +106,7 @@ export default function FarmActivityManagerScreen() {
   // --- Initial Data Fetch ---
   useEffect(() => {
     fetchHarvestData();
-  }, [areaId, token]);
+  }, [areaId, farmId, token]);
 
   // Helper to format date into YYYY-MM-DD
   const formatDate = (date: Date): string => {
@@ -185,6 +190,7 @@ export default function FarmActivityManagerScreen() {
     try {
       const payload = {
         area_id: areaId,
+        farm_id: farmId,
         crop_type: newCrop,
         sow_date: formatDate(sowDate),
         harvest_date: formatDate(harvestDate),
@@ -253,7 +259,7 @@ export default function FarmActivityManagerScreen() {
   const renderActivityForm = () => (
     <View style={localStyles.formContainer}>
       <Text style={localStyles.formTitle}>
-        Add New Farm Plan for Farm ID: {areaId}
+        Add New Farm Plan for Farm ID: {farmId || areaId}
       </Text>
 
       {/* Crop Dropdown */}
@@ -356,7 +362,7 @@ export default function FarmActivityManagerScreen() {
         {isFormVisible && renderActivityForm()}
 
         <Text style={localStyles.sectionTitle}>
-          Harvests for Area ID: {areaId}
+          Harvests for Farm ID: {farmId || areaId}
         </Text>
 
         {isLoading ? (

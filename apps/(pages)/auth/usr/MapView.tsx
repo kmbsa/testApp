@@ -832,7 +832,7 @@ export default function AreaDetailsScreen() {
                     style={[Styles.button, localStyles.farmActivityButton]}
                     onPress={() => {
                       if (selectedFarm) {
-                        navigation.navigate('FarmPlotCoordinates', {
+                        navigation.navigate('FarmActivity', {
                           areaId,
                           farmId: selectedFarm.Farm_ID,
                         });

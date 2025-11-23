@@ -71,12 +71,14 @@ export type RootStackParamList = {
   MapDetailsUpdate: { areaId: number } | undefined;
   MapCoordinatesUpdate: { areaId: number; draftData?: any } | undefined;
   MapCoordinatesUpdateDraftsPage: undefined;
-  FarmPlotCoordinates: { areaId: number; farmId?: number; draftData?: any } | undefined;
+  FarmPlotCoordinates:
+    | { areaId: number; farmId?: number; draftData?: any }
+    | undefined;
   FarmPlotCoordinatesDraftsPage: undefined;
   ImageViewerScreen:
     | { images: BackendPhoto[]; initialIndex: number; apiUrl: string }
     | undefined;
-  FarmActivity: { areaId: number } | undefined;
+  FarmActivity: { areaId: number; farmId?: number } | undefined;
   WeatherPreview: { location: Coordinate } | undefined;
   AccountSettings: undefined;
   AuthTabs: undefined;
