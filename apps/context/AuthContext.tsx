@@ -351,9 +351,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         );
 
         // Attempt to sync all pending submissions
-        const { successful, failed } = await retrySyncOfflineSubmissions(
-          userToken,
-        );
+        const { successful, failed } =
+          await retrySyncOfflineSubmissions(userToken);
 
         // Notify user of sync results
         if (successful > 0) {

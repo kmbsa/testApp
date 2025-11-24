@@ -943,8 +943,7 @@ const MapCoordinatesUpdate = () => {
           <Polyline
             coordinates={[points[points.length - 1], points[0]]}
             strokeWidth={3}
-            strokeColor="red"
-            lineDashPattern={[5, 5]}
+            strokeColor="blue"
           />
         )}
       </MapView>

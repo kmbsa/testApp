@@ -1672,6 +1672,7 @@ const FarmPlotCoordinates = () => {
         Status: f.Status,
         coordinates: f.coordinates,
       })), // Other farm plots
+      farmCount: farms.length, // Explicitly capture the count of existing farms
     };
 
     try {

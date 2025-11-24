@@ -12,7 +12,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   useNavigation,
   useRoute,
@@ -374,8 +374,8 @@ export default function AreaDetailsScreen() {
     if (!userToken) return 0;
 
     try {
-      const response = await axios.get<{ count: number }>(
-        `${API_URL}/farm/farm_harvest_ongoing_count/${farmId}`,
+      const response = await axios.get<{ harvests: Array<{ status: string }> }>(
+        `${API_URL}/area/farm_harvest/farm_id=${farmId}`,
         {
           headers: {
             Authorization: `Bearer ${userToken}`,
@@ -383,7 +383,14 @@ export default function AreaDetailsScreen() {
           },
         },
       );
-      return response.data.count || 0;
+
+      // Count harvests with 'Ongoing' status
+      const ongoingCount =
+        response.data.harvests?.filter(
+          (harvest) => harvest.status === 'Ongoing',
+        ).length || 0;
+
+      return ongoingCount;
     } catch (error) {
       console.warn(`Failed to fetch crop count for farm ${farmId}:`, error);
       return 0;
@@ -557,20 +564,18 @@ export default function AreaDetailsScreen() {
 
           {/* Render farm plots */}
           {farms.map((farm) => {
-            const farmCoords = convertBackendCoordinates(farm.coordinates);
+            const farmCoords: Coordinate[] = convertBackendCoordinates(
+              farm.coordinates,
+            );
             if (farmCoords.length < 2) return null;
+
             return [
-              <Polyline
-                key={`farm-polyline-${farm.Farm_ID}`}
+              <Polygon
+                key={`farm-polygon-${farm.Farm_ID}`}
                 coordinates={farmCoords}
+                strokeColor="rgba(255, 165, 0, 1)"
+                fillColor="rgba(255, 165, 0, 0.3)"
                 strokeWidth={3}
-                strokeColor="orange"
-              />,
-              <Polyline
-                key={`farm-closing-${farm.Farm_ID}`}
-                coordinates={[farmCoords[farmCoords.length - 1], farmCoords[0]]}
-                strokeWidth={3}
-                strokeColor="orange"
               />,
             ];
           })}
