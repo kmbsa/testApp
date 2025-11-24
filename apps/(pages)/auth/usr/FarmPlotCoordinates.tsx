@@ -65,6 +65,7 @@ export type FarmPlotCoordinatesDraftData = {
     Status: string;
     coordinates: BackendCoordinate[];
   }>; // Existing farms to display on map
+  farmCount?: number; // Count of existing farm plots in the area
 };
 
 export type StoredFarmPlotCoordinatesDraft = FarmPlotCoordinatesDraftData & {
@@ -1759,7 +1760,7 @@ const FarmPlotCoordinates = () => {
         </TouchableOpacity>
         <View style={localStyles.headerTitleContainer}>
           <Text style={localStyles.title} numberOfLines={1}>
-            {farmId ? 'Edit Farm Plot' : 'New Farm Plot'}: {areaData.Area_Name}
+            {farmId ? `Edit: ${areaData.Area_Name}` : areaData.Area_Name}
           </Text>
         </View>
       </View>

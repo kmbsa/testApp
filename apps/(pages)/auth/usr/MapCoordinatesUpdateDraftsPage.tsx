@@ -34,7 +34,8 @@ const MapCoordinatesUpdateDraftsPage = () => {
       const loadedDrafts = await loadMapCoordinatesUpdateDrafts();
       setDrafts(loadedDrafts);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Failed to load drafts:', error);
       setError(errorMessage);
     } finally {
@@ -249,12 +250,12 @@ const localStyles = StyleSheet.create({
   },
   draftDetail: {
     fontSize: 14,
-    color: '#666',
+    color: '#E8E8E8',
     marginBottom: 3,
   },
   draftDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#B8B89F',
     marginTop: 5,
   },
   deleteButton: {

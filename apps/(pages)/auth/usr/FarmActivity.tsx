@@ -83,7 +83,7 @@ export default function FarmActivityManagerScreen() {
       const url = farmId
         ? `${API_URL}/area/farm_harvest/farm_id=${farmId}`
         : `${API_URL}/area/farm_harvest/area_id=${areaId}`;
-      
+
       const response = await axios.get<{ harvests: HarvestRecord[] }>(url, {
         headers: {
           Authorization: `Bearer ${token}`,

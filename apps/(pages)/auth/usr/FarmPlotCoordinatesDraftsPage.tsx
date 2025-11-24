@@ -34,7 +34,8 @@ const FarmPlotCoordinatesDraftsPage = () => {
       const loadedDrafts = await loadFarmPlotCoordinatesDrafts();
       setDrafts(loadedDrafts);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Failed to load drafts:', error);
       setError(errorMessage);
     } finally {
@@ -103,16 +104,10 @@ const FarmPlotCoordinatesDraftsPage = () => {
       >
         <View style={localStyles.draftInfo}>
           <Text style={localStyles.draftTitle}>
-            {item.farmId
-              ? `Farm ID: ${item.farmId} (Editing)`
-              : 'New Farm Plot'}
-          </Text>
-          <Text style={localStyles.draftDetail}>Area ID: {item.areaId}</Text>
-          <Text style={localStyles.draftDetail}>
-            Soil Type: {item.soilType}
+            {item.farmId ? `Edit: ${item.areaName}` : item.areaName}
           </Text>
           <Text style={localStyles.draftDetail}>
-            Suitability: {item.soilSuitability}
+            Farm Plots: {item.farmCount || item.existingFarms?.length || 0}
           </Text>
           <Text style={localStyles.draftDetail}>
             Hectares: {item.hectares.toFixed(2)}
@@ -150,9 +145,7 @@ const FarmPlotCoordinatesDraftsPage = () => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={Styles.text.color} />
           </TouchableOpacity>
-          <Text style={localStyles.headerTitle}>
-            Farm Plot Drafts
-          </Text>
+          <Text style={localStyles.headerTitle}>Farm Plot Drafts</Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -258,17 +251,17 @@ const localStyles = StyleSheet.create({
   draftTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Styles.text.color,
+    color: '#F4D03F',
     marginBottom: 5,
   },
   draftDetail: {
     fontSize: 13,
-    color: '#666',
+    color: '#E8E8E8',
     marginBottom: 3,
   },
   draftDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#B8B89F',
     marginTop: 5,
   },
   deleteButton: {
