@@ -174,7 +174,7 @@ export default function MapEntriesScreen() {
       setError(null);
 
       try {
-        let url = `${API_URL}/areas?page=${page}&per_page=${ITEMS_PER_PAGE}`;
+        let url = `${API_URL}/areas_approved?page=${page}&per_page=${ITEMS_PER_PAGE}`;
         if (query) {
           url += `&search=${encodeURIComponent(query)}`;
         }

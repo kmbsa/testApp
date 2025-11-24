@@ -12,7 +12,12 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import MapView, { Marker, Polyline, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, {
+  Marker,
+  Polyline,
+  Polygon,
+  PROVIDER_GOOGLE,
+} from 'react-native-maps';
 import {
   useNavigation,
   useRoute,

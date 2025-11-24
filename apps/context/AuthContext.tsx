@@ -14,6 +14,7 @@ import {
   retrySyncOfflineSubmissions,
   getPendingSubmissions,
 } from '../utils/OfflineSubmissionManager';
+import { getDeviceHeader } from '../utils/deviceDetection';
 
 // --- INTERFACES ---
 
@@ -90,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const response = await axios.get(`${API_URL}/auth/user`, {
           headers: {
             Authorization: `Bearer ${token}`,
+            ...getDeviceHeader(),
           },
         });
 
@@ -131,6 +133,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const response = await axios.post(`${API_URL}/auth/login`, {
           email: email,
           password: password,
+        }, {
+          headers: {
+            ...getDeviceHeader(),
+          },
         });
         const token = response.data.access_token;
         await AsyncStorage.setItem('access_token', token);
@@ -153,7 +159,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signUp = useCallback(async (userDataPayload: RegistrationPayload) => {
     setIsSigningUp(true);
     try {
-      await axios.post(`${API_URL}/auth/register`, userDataPayload);
+      await axios.post(`${API_URL}/auth/register`, userDataPayload, {
+        headers: {
+          ...getDeviceHeader(),
+        },
+      });
       setError(null);
       console.log('AuthContext: User registered successfully.');
     } catch (e: any) {
@@ -178,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             {
               headers: {
                 Authorization: `Bearer ${userToken}`,
+                ...getDeviceHeader(),
               },
             },
           );
@@ -242,6 +253,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           headers: {
             Authorization: `Bearer ${userToken}`,
             'Content-Type': 'application/json',
+            ...getDeviceHeader(),
           },
         });
 
@@ -283,6 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           headers: {
             Authorization: `Bearer ${userToken}`,
             'Content-Type': 'application/json',
+            ...getDeviceHeader(),
           },
         });
 

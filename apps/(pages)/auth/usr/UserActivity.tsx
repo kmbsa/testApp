@@ -20,6 +20,7 @@ import Styles from '../../../styles/styles';
 
 import { useAuth } from '../../../context/AuthContext';
 import { ActivityLog } from '../../../navigation/types';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 
 interface ActivityResponse {
   logs: ActivityLog[];
@@ -147,6 +148,7 @@ export default function UserActivityScreen() {
   const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(
     null,
   );
+  const [entityName, setEntityName] = useState<string>('');
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
 
   // Filter state
@@ -196,6 +198,7 @@ export default function UserActivityScreen() {
             headers: {
               Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
+              ...getDeviceHeader(),
             },
           },
         );
@@ -228,12 +231,58 @@ export default function UserActivityScreen() {
     fetchActivityLogs(1, false);
   };
 
+  // Fetch entity name based on type and ID
+  const fetchEntityName = useCallback(
+    async (entityType: string, entityId: number | null) => {
+      if (!entityId || !token) {
+        setEntityName('N/A');
+        return;
+      }
+
+      try {
+        let name = '';
+
+        if (entityType === 'AREA') {
+          const response = await axios.get(`${API_URL}/area/${entityId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              ...getDeviceHeader(),
+            },
+          });
+          name = response.data.area?.Area_Name || 'Unknown Area';
+        } else if (entityType === 'FARM') {
+          const response = await axios.get(
+            `${API_URL}/area/1/farm/${entityId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+                ...getDeviceHeader(),
+              },
+            },
+          );
+          name = response.data.farm?.Soil_Type || 'Unknown Farm';
+        } else {
+          name = 'N/A';
+        }
+
+        setEntityName(name);
+      } catch (error) {
+        console.error('Failed to fetch entity name:', error);
+        setEntityName('Unknown');
+      }
+    },
+    [token],
+  );
+
   // Render activity log item
   const renderActivityItem = ({ item }: { item: ActivityLog }) => (
     <TouchableOpacity
       style={localStyles.activityCard}
       onPress={() => {
         setSelectedActivity(item);
+        fetchEntityName(item.Entity_Type, item.Entity_ID);
         setDetailsModalVisible(true);
       }}
     >
@@ -370,9 +419,9 @@ export default function UserActivityScreen() {
               <View style={localStyles.divider} />
 
               <View style={localStyles.detailsRow}>
-                <Text style={localStyles.detailsLabel}>Entity ID</Text>
+                <Text style={localStyles.detailsLabel}>Target Name</Text>
                 <Text style={localStyles.detailsValue}>
-                  {selectedActivity.Entity_ID || 'N/A'}
+                  {entityName || 'Loading...'}
                 </Text>
               </View>
 
