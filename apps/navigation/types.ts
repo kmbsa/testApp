@@ -73,7 +73,7 @@ export type ActivityLog = {
 export type RootStackParamList = {
   Login: undefined;
   Home: undefined;
-  Registration: undefined;
+  Registration: { agreedToTerms?: boolean } | undefined;
   Map: { capturedPhotoUri?: string; capturedLocation?: Coordinate } | undefined;
   MapEntries: undefined;
   DraftsPage: undefined;
@@ -98,6 +98,7 @@ export type RootStackParamList = {
   AuthTabs: undefined;
   Test: undefined;
   EmailVerification: { user_id: number; email: string; first_name: string };
+  TermsAndConditions: { source?: string } | undefined;
 };
 
 export type LoginScreenProps = NativeStackScreenProps<

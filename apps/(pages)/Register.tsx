@@ -11,7 +11,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import axios from 'axios';
 import { API_URL } from '@env';
@@ -48,8 +48,19 @@ function Register() {
 
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
+  const [agreedToTerms, setAgreedToTerms] = useState<boolean>(false);
 
   const navigation = useNavigation<RootStackNavigationProp>();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Check if we just returned from Terms and Conditions
+      if ((global as any).agreedToTermsFlag === true) {
+        setAgreedToTerms(true);
+        (global as any).agreedToTermsFlag = false;
+      }
+    }, []),
+  );
 
   const handleRegistration = async () => {
     if (
@@ -62,6 +73,14 @@ function Register() {
       !contactNumber
     ) {
       Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    if (!agreedToTerms) {
+      Alert.alert(
+        'User Agreement',
+        'You must agree to the user agreement to register.',
+      );
       return;
     }
 
@@ -283,6 +302,72 @@ function Register() {
                     )}
                   </View>
                   <Text style={Styles.radioButtonLabel}>Female</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ marginTop: 15, marginBottom: 15, width: '100%' }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    paddingVertical: 8,
+                  }}
+                  onPress={() => setAgreedToTerms(!agreedToTerms)}
+                >
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 3,
+                      borderWidth: 2,
+                      borderColor: Styles.text.color,
+                      backgroundColor: agreedToTerms
+                        ? Styles.text.color
+                        : 'transparent',
+                      marginRight: 10,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginTop: 2,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {agreedToTerms && (
+                      <Text
+                        style={{
+                          color: 'white',
+                          fontSize: 14,
+                          fontWeight: 'bold',
+                        }}
+                      >
+                        ✓
+                      </Text>
+                    )}
+                  </View>
+                  <View style={{ width: 275 }}>
+                    <Text
+                      style={[
+                        Styles.text,
+                        { flexWrap: 'wrap', fontSize: 18, lineHeight: 22 },
+                      ]}
+                    >
+                      I agree and consent to the{' '}
+                      <Text
+                        style={{
+                          color: '#007AFF',
+                          textDecorationLine: 'underline',
+                          fontWeight: '600',
+                          fontSize: 18,
+                        }}
+                        onPress={() => {
+                          navigation.navigate('TermsAndConditions', {
+                            source: 'register',
+                          });
+                        }}
+                      >
+                        User Agreement
+                      </Text>
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 

@@ -11,6 +11,7 @@ import type { RootStackParamList } from './types';
 
 import AuthTabs from '../(pages)/_Layout';
 import EmailVerification from '../(pages)/EmailVerification';
+import TermsAndConditions from '../(pages)/UserAgreement';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -41,6 +42,14 @@ function RootStack() {
             component={EmailVerification}
             options={{
               title: 'Verify Email',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="TermsAndConditions"
+            component={TermsAndConditions}
+            options={{
+              title: 'Terms and Conditions',
               headerShown: false,
             }}
           />
