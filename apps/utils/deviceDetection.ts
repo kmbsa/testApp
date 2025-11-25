@@ -20,7 +20,6 @@ const iphoneModelMap: { [key: string]: string } = {
   'iPhone15,0': 'iPhone 14',
   'iPhone14,8': 'iPhone 14',
   'iPhone14,7': 'iPhone 14 Plus',
-  'iPhone14,6': 'iPhone SE (3rd generation)',
   'iPhone14,5': 'iPhone 14 Plus',
   'iPhone14,4': 'iPhone 14 Pro Max',
   'iPhone14,3': 'iPhone 14 Pro',
@@ -38,7 +37,6 @@ const iphoneModelMap: { [key: string]: string } = {
   // iPhone 12 series (2020)
   'iPhone13,5': 'iPhone 12 Pro Max',
   'iPhone13,6': 'iPhone 12',
-  'iPhone12,8': 'iPhone SE (2nd generation)',
   'iPhone12,5': 'iPhone 12 Pro Max',
   'iPhone12,4': 'iPhone 12 Pro',
   'iPhone12,3': 'iPhone 12 Pro',
@@ -73,7 +71,6 @@ const iphoneModelMap: { [key: string]: string } = {
   'iPhone9,3': 'iPhone 7 Plus',
   'iPhone9,2': 'iPhone 7 Plus',
   'iPhone9,1': 'iPhone 7',
-  'iPhone8,4': 'iPhone SE (1st generation)',
   'iPhone8,2': 'iPhone 6s Plus',
   'iPhone8,1': 'iPhone 6s',
   'iPhone7,2': 'iPhone 6 Plus',

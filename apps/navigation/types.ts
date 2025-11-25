@@ -97,6 +97,7 @@ export type RootStackParamList = {
   UserActivity: undefined;
   AuthTabs: undefined;
   Test: undefined;
+  EmailVerification: { user_id: number; email: string; first_name: string };
 };
 
 export type LoginScreenProps = NativeStackScreenProps<

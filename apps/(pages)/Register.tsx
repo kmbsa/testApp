@@ -29,12 +29,12 @@ const validatePhilippinesPhoneNumber = (phoneNumber: string): boolean => {
   const cleaned = phoneNumber.replace(/[\s\-]/g, '');
 
   // Valid formats:
-  // +63XXXXXXXXXX (with country code)
-  // 63XXXXXXXXXX (with country code, no +)
-  // 09XXXXXXXXX (local format without country code)
-  // 9XXXXXXXXX (local format, 10 digits)
+  // +639XXXXXXXXX (with country code) = 13 characters total
+  // 639XXXXXXXXX (with country code, no +) = 12 characters total
+  // 09XXXXXXXXX (local format) = 11 characters total
+  // Pattern: (+63|63|0)9 + 9 digits = 11 total
 
-  const philippinesPhoneRegex = /^(\+63|63|0)9\d{8}$/;
+  const philippinesPhoneRegex = /^(\+63|63|0)9\d{9}$/;
   return philippinesPhoneRegex.test(cleaned);
 };
 
@@ -92,7 +92,7 @@ function Register() {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_URL}/user`, {
+      const response = await axios.post(`${API_URL}/auth/register`, {
         email: email.toLowerCase(),
         password: password,
         first_name: firstName,
@@ -102,6 +102,9 @@ function Register() {
       });
 
       if (response.status === 201) {
+        const { user_id } = response.data;
+
+        // Clear form
         setFirstName('');
         setLastName('');
         setPassword('');
@@ -110,17 +113,12 @@ function Register() {
         setContactNumber('');
         setSex(null);
 
-        Alert.alert('Success', 'You have successfully registered.', [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]);
-      } else {
-        Alert.alert(
-          'Registration Status',
-          `Registration request completed with status: ${response.status}`,
-        );
+        // Navigate to email verification screen
+        navigation.navigate('EmailVerification', {
+          user_id,
+          email: email.toLowerCase(),
+          first_name: firstName,
+        });
       }
     } catch (error: any) {
       console.error('Registration API error:', error);

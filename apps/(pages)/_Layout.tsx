@@ -6,7 +6,7 @@ import RegisterScreen from '../(pages)/Register';
 
 const Tab = createBottomTabNavigator();
 
-const App = () => {
+const AuthTabsNavigator = () => {
   return (
     <Tab.Navigator
       initialRouteName="Login"
@@ -42,4 +42,4 @@ const App = () => {
   );
 };
 
-export default App;
+export default AuthTabsNavigator;
