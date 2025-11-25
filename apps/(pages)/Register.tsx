@@ -24,9 +24,18 @@ const validateEmail = (email: string): boolean => {
   return emailRegex.test(email);
 };
 
-const validatePhoneNumber = (phoneNumber: string): boolean => {
-  const phoneRegex = /^\+?[0-9]+$/;
-  return phoneRegex.test(phoneNumber);
+const validatePhilippinesPhoneNumber = (phoneNumber: string): boolean => {
+  // Remove spaces and hyphens
+  const cleaned = phoneNumber.replace(/[\s\-]/g, '');
+
+  // Valid formats:
+  // +63XXXXXXXXXX (with country code)
+  // 63XXXXXXXXXX (with country code, no +)
+  // 09XXXXXXXXX (local format without country code)
+  // 9XXXXXXXXX (local format, 10 digits)
+
+  const philippinesPhoneRegex = /^(\+63|63|0)9\d{8}$/;
+  return philippinesPhoneRegex.test(cleaned);
 };
 
 function Register() {
@@ -72,10 +81,10 @@ function Register() {
       return;
     }
 
-    if (!validatePhoneNumber(contactNumber)) {
+    if (!validatePhilippinesPhoneNumber(contactNumber)) {
       Alert.alert(
-        'Invalid Contact Number',
-        'Please enter a valid contact number (digits only, optional leading +).',
+        'Invalid Philippines Phone Number',
+        'Please enter a valid Philippines phone number (09XXXXXXXXX, +639XXXXXXXXX, or 639XXXXXXXXX).',
       );
       return;
     }

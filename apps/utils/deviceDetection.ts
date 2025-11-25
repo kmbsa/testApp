@@ -119,7 +119,12 @@ export const getDeviceInfo = () => {
       } else if (Device.modelId) {
         // FALLBACK: Use modelId if modelName not available
         deviceModel = getIPhoneModelName(Device.modelId);
-        console.log('✓ Using Device.modelId (FALLBACK):', Device.modelId, '→', deviceModel);
+        console.log(
+          '✓ Using Device.modelId (FALLBACK):',
+          Device.modelId,
+          '→',
+          deviceModel,
+        );
       } else if (Device.brand === 'Apple') {
         // LAST RESORT: We know it's an Apple device but don't have the model
         deviceModel = 'Apple iPhone (model unknown)';
