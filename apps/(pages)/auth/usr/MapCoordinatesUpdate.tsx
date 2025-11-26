@@ -11,11 +11,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Entypo } from '@expo/vector-icons';
+import { Entypo, FontAwesome } from '@expo/vector-icons';
 import Ionicons from '@expo/vector-icons/build/Ionicons';
 import EvilIcons from '@expo/vector-icons/build/EvilIcons';
 import MaterialCommunityIcons from '@expo/vector-icons/build/MaterialCommunityIcons';
 import axios, { AxiosError } from 'axios';
+import * as Location from 'expo-location';
 import * as turf from '@turf/turf';
 import type {
   FeatureCollection,
@@ -190,10 +191,14 @@ const findSegmentAtTap = (
   let closestSegmentIndex = -1;
   let closestDistance = Infinity;
 
-  // Check each segment
-  for (let i = 0; i < points.length; i++) {
+  // Check each segment (but NOT the closing segment for closed polygons)
+  // For closed polygons (3+ points), only check open segments to avoid
+  // inserting between the last and first point
+  const maxSegmentIndex = points.length >= 3 ? points.length - 1 : points.length;
+
+  for (let i = 0; i < maxSegmentIndex; i++) {
     const p1 = points[i];
-    const p2 = points[(i + 1) % points.length]; // Circular: last → first
+    const p2 = points[i + 1];
 
     // Ensure segment points have valid numbers
     const p1Lng =
@@ -516,6 +521,132 @@ const MapCoordinatesUpdate = () => {
     if (newPoints.length >= 3 && !isComplete) {
       setIsComplete(true);
     }
+  };
+
+  const getCurrentUserLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Location Permission Denied',
+        'Please enable location services to mark your current location.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+    let location = await Location.getCurrentPositionAsync({});
+    const userCoordinate: Coordinate = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+
+    // Determine insertion index using segment detection
+    let insertionIndex = points.length;
+
+    if (points.length >= 2) {
+      const SEGMENT_TOLERANCE_METERS = 50; // 50 meters from line
+      const segmentData = findSegmentAtTap(
+        userCoordinate,
+        points,
+        SEGMENT_TOLERANCE_METERS,
+      );
+
+      if (segmentData) {
+        // Found a nearby segment within tolerance
+        insertionIndex = segmentData.insertionIndex;
+        console.log(
+          `Mark Location: Found segment ${segmentData.segmentIndex} at ${segmentData.distance.toFixed(1)}m, inserting at index ${insertionIndex}`,
+        );
+      } else {
+        // No segment within tolerance, find the NEAREST segment anyway
+        // This ensures we insert along a real edge, not between the same points
+        console.log(
+          'Mark Location: No segment within tolerance, finding nearest segment as fallback',
+        );
+
+        let closestSegmentIndex = -1;
+        let closestDistance = Infinity;
+
+        // Check each segment (excluding closing segment for polygons with 3+ points)
+        const maxSegmentIndex =
+          points.length >= 3 ? points.length - 1 : points.length;
+
+        for (let i = 0; i < maxSegmentIndex; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
+
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
+          }
+
+          try {
+            const userLng =
+              typeof userCoordinate.longitude === 'string'
+                ? parseFloat(userCoordinate.longitude)
+                : userCoordinate.longitude;
+            const userLat =
+              typeof userCoordinate.latitude === 'string'
+                ? parseFloat(userCoordinate.latitude)
+                : userCoordinate.latitude;
+
+            const line = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+            const userPoint = turf.point([userLng, userLat]);
+            const nearest = turf.nearestPointOnLine(line, userPoint);
+            const distanceMeters = nearest.properties.dist * 1000;
+
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSegmentIndex = i;
+            }
+          } catch (error) {
+            console.warn(`Error processing segment ${i}:`, error);
+            continue;
+          }
+        }
+
+        if (closestSegmentIndex !== -1) {
+          insertionIndex = closestSegmentIndex + 1;
+          console.log(
+            `Mark Location: Using nearest segment ${closestSegmentIndex} at ${closestDistance.toFixed(1)}m, inserting at index ${insertionIndex}`,
+          );
+        } else {
+          console.log('Mark Location: No segments found, appending to end');
+          insertionIndex = points.length;
+        }
+      }
+    }
+
+    insertPoint(userCoordinate, insertionIndex);
+    mapRef.current?.animateToRegion({
+      latitude: userCoordinate.latitude,
+      longitude: userCoordinate.longitude,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    });
   };
 
   const handleMapPress = (event: any) => {
@@ -948,7 +1079,7 @@ const MapCoordinatesUpdate = () => {
         )}
       </MapView>
 
-      {/* --- MAP OVERLAY CONTROLS (Save Draft + Undo/Redo) --- */}
+      {/* --- MAP OVERLAY CONTROLS (Save Draft + Mark Location + Undo/Redo) --- */}
       <View style={localStyles.mapControlsContainer}>
         {/* Save Draft Button */}
         <TouchableOpacity
@@ -969,6 +1100,20 @@ const MapCoordinatesUpdate = () => {
             size={24}
             color={hasUnsavedChanges ? 'black' : 'grey'}
           />
+        </TouchableOpacity>
+
+        {/* Mark My Location Button */}
+        <TouchableOpacity
+          onPress={getCurrentUserLocation}
+          style={[
+            localStyles.actionButton,
+            {
+              backgroundColor: Styles.button.backgroundColor,
+              marginRight: 10,
+            },
+          ]}
+        >
+          <FontAwesome name="location-arrow" size={20} color="black" />
         </TouchableOpacity>
 
         {/* Undo/Redo */}

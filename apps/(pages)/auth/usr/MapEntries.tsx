@@ -278,14 +278,18 @@ export default function MapEntriesScreen() {
           <View style={localStyles.draftButtonsContainer}>
             <TouchableOpacity
               style={localStyles.draftButton}
-              onPress={() => navigation.navigate('MapCoordinatesUpdateDraftsPage')}
+              onPress={() =>
+                navigation.navigate('MapCoordinatesUpdateDraftsPage')
+              }
             >
               <Ionicons name="document" size={14} color="#000" />
               <Text style={localStyles.draftButtonText}>Area</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={localStyles.draftButton}
-              onPress={() => navigation.navigate('FarmPlotCoordinatesDraftsPage')}
+              onPress={() =>
+                navigation.navigate('FarmPlotCoordinatesDraftsPage')
+              }
             >
               <Ionicons name="document" size={14} color="#000" />
               <Text style={localStyles.draftButtonText}>Farm</Text>
