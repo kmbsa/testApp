@@ -639,10 +639,27 @@ export default function Map() {
       console.log(
         '>>> Map: Tapped first marker to complete shape. Calling context.closePolygon()',
       );
-      closePolygon();
 
+      // 1. Perform the Geo-lookup
+      const { province, region } = lookupAreaLocation(points);
+
+      // 2. Update the context state (stores province/region)
+      setIsComplete(true, province ?? undefined, region ?? undefined);
+
+      // 3. Update the local state for the dropdowns in the modal
+      setAreaProvince(province);
+      setAreaRegion(region);
+
+      closePolygon();
       const calculatedArea = calculateAreaInHectares([...points]);
       setAreaInHectares(calculatedArea);
+
+      Alert.alert(
+        'Shape Completed',
+        `Province: ${province || 'Not Found'}\nRegion: ${
+          region || 'Not Found'
+        }\nArea: ${calculatedArea.toFixed(4)} hectares.`,
+      );
     } else {
       console.log(`>>> Map: Tapped marker at index ${index} while plotting.`);
     }
