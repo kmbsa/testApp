@@ -143,8 +143,10 @@ export default function UserActivityScreen() {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(
     null,
   );
@@ -161,7 +163,7 @@ export default function UserActivityScreen() {
 
   // Fetch activity logs
   const fetchActivityLogs = useCallback(
-    async (page: number = 1, showLoading: boolean = true) => {
+    async (page: number = 1, append: boolean = false) => {
       if (!token) {
         Alert.alert(
           'Authentication Error',
@@ -172,11 +174,11 @@ export default function UserActivityScreen() {
 
       if (!API_URL) {
         Alert.alert('Configuration Error', 'API URL is not configured.');
-        setIsLoading(false);
+        if (!append) setIsLoading(false);
         return;
       }
 
-      if (showLoading) {
+      if (!append) {
         setIsLoading(true);
       }
 
@@ -203,16 +205,29 @@ export default function UserActivityScreen() {
           },
         );
 
-        setActivities(response.data.logs || []);
+        if (append) {
+          setActivities((prev) => [...prev, ...(response.data.logs || [])]);
+        } else {
+          setActivities(response.data.logs || []);
+        }
+
         setCurrentPage(page);
         setTotalPages(response.data.pages || 1);
+        setHasMorePages(page < (response.data.pages || 1));
       } catch (error) {
         console.error('Failed to fetch activity logs:', error);
-        Alert.alert('Error', 'Failed to load activity logs. Please try again.');
-        setActivities([]);
+        if (!append) {
+          Alert.alert(
+            'Error',
+            'Failed to load activity logs. Please try again.',
+          );
+          setActivities([]);
+        }
       } finally {
-        if (showLoading) {
+        if (!append) {
           setIsLoading(false);
+        } else {
+          setIsLoadingMore(false);
         }
         setIsRefreshing(false);
       }
@@ -222,13 +237,21 @@ export default function UserActivityScreen() {
 
   // Initial fetch and refetch on filter change
   useEffect(() => {
-    fetchActivityLogs(1, true);
+    fetchActivityLogs(1, false);
   }, [activityTypeFilter, entityTypeFilter, fetchActivityLogs]);
 
   // Handle refresh
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchActivityLogs(1, false);
+  };
+
+  // Handle load more
+  const handleLoadMore = () => {
+    if (currentPage < totalPages && !isLoadingMore) {
+      setIsLoadingMore(true);
+      fetchActivityLogs(currentPage + 1, true);
+    }
   };
 
   // Fetch entity name based on type and ID
@@ -558,38 +581,22 @@ export default function UserActivityScreen() {
               colors={['#3D550C']}
             />
           }
-          ListFooterComponent={() => (
-            <View style={localStyles.paginationContainer}>
-              <TouchableOpacity
-                style={[
-                  localStyles.paginationButton,
-                  currentPage === 1 && localStyles.paginationButtonDisabled,
-                ]}
-                onPress={() => fetchActivityLogs(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <Ionicons name="chevron-back" size={20} color="#F4D03F" />
-                <Text style={localStyles.paginationText}>Previous</Text>
-              </TouchableOpacity>
-
-              <Text style={localStyles.pageIndicator}>
-                Page {currentPage} of {totalPages}
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  localStyles.paginationButton,
-                  currentPage === totalPages &&
-                    localStyles.paginationButtonDisabled,
-                ]}
-                onPress={() => fetchActivityLogs(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <Text style={localStyles.paginationText}>Next</Text>
-                <Ionicons name="chevron-forward" size={20} color="#F4D03F" />
-              </TouchableOpacity>
-            </View>
-          )}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={() =>
+            isLoadingMore ? (
+              <View style={localStyles.loadMoreContainer}>
+                <ActivityIndicator size="small" color="#3D550C" />
+                <Text style={localStyles.loadMoreText}>Loading more...</Text>
+              </View>
+            ) : currentPage === totalPages && activities.length > 0 ? (
+              <View style={localStyles.endOfListContainer}>
+                <Text style={localStyles.endOfListText}>
+                  No more activities to load
+                </Text>
+              </View>
+            ) : null
+          }
         />
       )}
 
@@ -754,35 +761,27 @@ const localStyles = StyleSheet.create({
     fontSize: 11,
     color: '#B8B89F',
   },
-  paginationContainer: {
+  loadMoreContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 10,
+    paddingVertical: 15,
+    gap: 8,
   },
-  paginationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#3D550C',
-    borderRadius: 8,
-    borderWidth: 0,
-  },
-  paginationButtonDisabled: {
-    opacity: 0.5,
-  },
-  paginationText: {
-    fontSize: 13,
-    color: '#F4D03F',
-    fontWeight: '600',
-    marginHorizontal: 4,
-  },
-  pageIndicator: {
+  loadMoreText: {
     fontSize: 13,
     color: '#3D550C',
-    fontWeight: '700',
+    fontWeight: '500',
+  },
+  endOfListContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 15,
+  },
+  endOfListText: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
   },
   filterMenuOverlay: {
     flex: 1,
