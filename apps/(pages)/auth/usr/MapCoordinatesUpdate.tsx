@@ -194,7 +194,8 @@ const findSegmentAtTap = (
   // Check each segment (but NOT the closing segment for closed polygons)
   // For closed polygons (3+ points), only check open segments to avoid
   // inserting between the last and first point
-  const maxSegmentIndex = points.length >= 3 ? points.length - 1 : points.length;
+  const maxSegmentIndex =
+    points.length >= 3 ? points.length - 1 : points.length;
 
   for (let i = 0; i < maxSegmentIndex; i++) {
     const p1 = points[i];

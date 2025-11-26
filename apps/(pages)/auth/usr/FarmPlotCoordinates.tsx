@@ -21,7 +21,9 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import Ionicons from '@expo/vector-icons/build/Ionicons';
 import EvilIcons from '@expo/vector-icons/build/EvilIcons';
 import MaterialCommunityIcons from '@expo/vector-icons/build/MaterialCommunityIcons';
+import { FontAwesome } from '@expo/vector-icons';
 import axios, { AxiosError } from 'axios';
+import * as Location from 'expo-location';
 import * as turf from '@turf/turf';
 import type { Position } from 'geojson';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -108,11 +110,9 @@ export const saveFarmPlotCoordinatesDraft = async (
       JSON.stringify(keys),
     );
 
-    Alert.alert('Draft Saved', 'Farm plot draft saved locally.');
     return draftKey;
   } catch (error) {
     console.error('Failed to save FarmPlotCoordinates draft:', error);
-    Alert.alert('Error', `Failed to save draft.\n${error}`);
     throw error;
   }
 };
@@ -240,6 +240,114 @@ const convertBackendCoordinatesToCoordinates = (
 
 // ============================================================================
 // TURF.JS HELPER FUNCTIONS
+// ============================================================================
+
+// ============================================================================
+// SEGMENT DETECTION FOR INTELLIGENT POINT INSERTION
+// ============================================================================
+
+/**
+ * Finds which line segment the tap point is closest to.
+ * Uses Turf.js nearestPointOnLine for accurate detection.
+ * Returns the segment for insertion if within tolerance.
+ */
+const findSegmentAtTap = (
+  tapCoord: Coordinate,
+  points: Coordinate[],
+  toleranceInMeters: number = 50, // 50 meters
+): {
+  insertionIndex: number;
+  segmentIndex: number;
+  distance: number;
+} | null => {
+  if (points.length < 2) return null;
+
+  // Ensure tap coordinate has valid numbers
+  const tapLng =
+    typeof tapCoord.longitude === 'string'
+      ? parseFloat(tapCoord.longitude)
+      : tapCoord.longitude;
+  const tapLat =
+    typeof tapCoord.latitude === 'string'
+      ? parseFloat(tapCoord.latitude)
+      : tapCoord.latitude;
+
+  if (!isFinite(tapLng) || !isFinite(tapLat)) {
+    console.warn('Invalid tap coordinate:', tapCoord);
+    return null;
+  }
+
+  let closestSegmentIndex = -1;
+  let closestDistance = Infinity;
+
+  // Check each segment (excluding closing segment for polygons with 3+ points)
+  const maxSegmentIndex =
+    points.length >= 3 ? points.length - 1 : points.length;
+
+  for (let i = 0; i < maxSegmentIndex; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+
+    // Ensure segment points have valid numbers
+    const p1Lng =
+      typeof p1.longitude === 'string'
+        ? parseFloat(p1.longitude)
+        : p1.longitude;
+    const p1Lat =
+      typeof p1.latitude === 'string' ? parseFloat(p1.latitude) : p1.latitude;
+    const p2Lng =
+      typeof p2.longitude === 'string'
+        ? parseFloat(p2.longitude)
+        : p2.longitude;
+    const p2Lat =
+      typeof p2.latitude === 'string' ? parseFloat(p2.latitude) : p2.latitude;
+
+    if (
+      !isFinite(p1Lng) ||
+      !isFinite(p1Lat) ||
+      !isFinite(p2Lng) ||
+      !isFinite(p2Lat)
+    ) {
+      continue;
+    }
+
+    try {
+      // Create a Turf line from p1 to p2
+      const line = turf.lineString([
+        [p1Lng, p1Lat],
+        [p2Lng, p2Lat],
+      ]);
+
+      // Find nearest point on this line to the tap
+      const tapPoint = turf.point([tapLng, tapLat]);
+      const nearest = turf.nearestPointOnLine(line, tapPoint);
+      const distanceMeters = nearest.properties.dist * 1000; // Convert km to meters
+
+      // Track closest segment
+      if (distanceMeters < closestDistance) {
+        closestDistance = distanceMeters;
+        closestSegmentIndex = i;
+      }
+    } catch (error) {
+      console.warn(`Error processing segment ${i}:`, error);
+      continue;
+    }
+  }
+
+  // If closest segment is within tolerance, return it
+  if (closestDistance <= toleranceInMeters && closestSegmentIndex !== -1) {
+    return {
+      segmentIndex: closestSegmentIndex,
+      insertionIndex: closestSegmentIndex + 1, // Insert AFTER p1, BEFORE p2
+      distance: closestDistance,
+    };
+  }
+
+  return null;
+};
+
+// ============================================================================
+// TAP DETECTION
 // ============================================================================
 
 /**
@@ -664,6 +772,145 @@ const FarmPlotCoordinates = () => {
     if (newPoints.length >= 3 && !isComplete) {
       setIsComplete(true);
     }
+  };
+
+  const getCurrentUserLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Location Permission Denied',
+        'Please enable location services to mark your current location.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+    let location = await Location.getCurrentPositionAsync({});
+    const userCoordinate: Coordinate = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+
+    // Use editing coordinates if in edit mode, otherwise use creation points
+    const coordinatesToUse = isEditingCoordinates
+      ? editingFarmCoordinates
+      : points;
+
+    // Determine insertion index using segment detection
+    let insertionIndex = coordinatesToUse.length;
+
+    if (coordinatesToUse.length >= 2) {
+      const SEGMENT_TOLERANCE_METERS = 50; // 50 meters from line
+      const segmentData = findSegmentAtTap(
+        userCoordinate,
+        coordinatesToUse,
+        SEGMENT_TOLERANCE_METERS,
+      );
+
+      if (segmentData) {
+        // Found a nearby segment within tolerance
+        insertionIndex = segmentData.insertionIndex;
+        console.log(
+          `Mark Location: Found segment ${segmentData.segmentIndex} at ${segmentData.distance.toFixed(1)}m, inserting at index ${insertionIndex}`,
+        );
+      } else {
+        // No segment within tolerance, find the NEAREST segment anyway
+        // This ensures we insert along a real edge, not between the same points
+        console.log(
+          'Mark Location: No segment within tolerance, finding nearest segment as fallback',
+        );
+
+        let closestSegmentIndex = -1;
+        let closestDistance = Infinity;
+
+        // Check each segment (excluding closing segment for polygons with 3+ points)
+        const maxSegmentIndex =
+          coordinatesToUse.length >= 3
+            ? coordinatesToUse.length - 1
+            : coordinatesToUse.length;
+
+        for (let i = 0; i < maxSegmentIndex; i++) {
+          const p1 = coordinatesToUse[i];
+          const p2 = coordinatesToUse[i + 1];
+
+          const p1Lng =
+            typeof p1.longitude === 'string'
+              ? parseFloat(p1.longitude)
+              : p1.longitude;
+          const p1Lat =
+            typeof p1.latitude === 'string'
+              ? parseFloat(p1.latitude)
+              : p1.latitude;
+          const p2Lng =
+            typeof p2.longitude === 'string'
+              ? parseFloat(p2.longitude)
+              : p2.longitude;
+          const p2Lat =
+            typeof p2.latitude === 'string'
+              ? parseFloat(p2.latitude)
+              : p2.latitude;
+
+          if (
+            !isFinite(p1Lng) ||
+            !isFinite(p1Lat) ||
+            !isFinite(p2Lng) ||
+            !isFinite(p2Lat)
+          ) {
+            continue;
+          }
+
+          try {
+            const userLng =
+              typeof userCoordinate.longitude === 'string'
+                ? parseFloat(userCoordinate.longitude)
+                : userCoordinate.longitude;
+            const userLat =
+              typeof userCoordinate.latitude === 'string'
+                ? parseFloat(userCoordinate.latitude)
+                : userCoordinate.latitude;
+
+            const line = turf.lineString([
+              [p1Lng, p1Lat],
+              [p2Lng, p2Lat],
+            ]);
+            const userPoint = turf.point([userLng, userLat]);
+            const nearest = turf.nearestPointOnLine(line, userPoint);
+            const distanceMeters = nearest.properties.dist * 1000;
+
+            if (distanceMeters < closestDistance) {
+              closestDistance = distanceMeters;
+              closestSegmentIndex = i;
+            }
+          } catch (error) {
+            console.warn(`Error processing segment ${i}:`, error);
+            continue;
+          }
+        }
+
+        if (closestSegmentIndex !== -1) {
+          insertionIndex = closestSegmentIndex + 1;
+          console.log(
+            `Mark Location: Using nearest segment ${closestSegmentIndex} at ${closestDistance.toFixed(1)}m, inserting at index ${insertionIndex}`,
+          );
+        } else {
+          console.log('Mark Location: No segments found, appending to end');
+          insertionIndex = coordinatesToUse.length;
+        }
+      }
+    }
+
+    // Insert into appropriate array based on mode
+    if (isEditingCoordinates) {
+      insertEditingFarmPoint(userCoordinate, insertionIndex);
+    } else {
+      insertPoint(userCoordinate, insertionIndex);
+    }
+
+    mapRef.current?.animateToRegion({
+      latitude: userCoordinate.latitude,
+      longitude: userCoordinate.longitude,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02,
+    });
   };
 
   /**
@@ -1287,30 +1534,115 @@ const FarmPlotCoordinates = () => {
   };
 
   const fetchAreaAndFarms = useCallback(async () => {
-    // Check if draft data is provided
-    const draftData = route.params?.draftData;
-
+    setIsLoading(true);
+    
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
       return;
     }
 
-    // If no token but have draft data, use it as fallback (but we'll try to fetch first)
-    if (!userToken && !draftData) {
+    // **CRITICAL: Check for draft data FIRST and return early if found**
+    // This ensures draft is NEVER overwritten by API data
+    const draftData = route.params?.draftData;
+    
+    if (draftData) {
+      console.log('DEBUG: Draft data detected, loading ONLY from draft');
+      try {
+        // Use area boundaries from draft if available
+        setAreaData({
+          Area_ID: draftData.areaId,
+          Area_Name: draftData.areaName || '',
+          Area_Hectares: 0,
+          Province: '',
+          Region: '',
+          Area_Organization: '',
+          status: null as any,
+          // Use saved area boundaries from draft for map display
+          coordinates:
+            draftData.areaBoundaries && draftData.areaBoundaries.length > 0
+              ? draftData.areaBoundaries
+              : draftData.coordinates.map((c: Coordinate) => ({
+                  Latitude: c.latitude,
+                  Longitude: c.longitude,
+                })),
+        } as unknown as AreaEntry);
+
+        // Load existing farms from draft if available
+        let farmsList: Farm[] = (draftData.existingFarms || []).map(
+          (f: any) => ({
+            Farm_ID: f.Farm_ID,
+            Soil_Type: f.Soil_Type,
+            Soil_Suitability: f.Soil_Suitability,
+            Hectares: f.Hectares,
+            Status: f.Status,
+            coordinates: f.coordinates || [],
+          }),
+        );
+
+        // If draft has farmId, apply edited coordinates to that farm
+        if (draftData.farmId) {
+          console.log(
+            `DEBUG: Applying edited coordinates to farm ${draftData.farmId}`,
+          );
+          farmsList = farmsList.map((farm) =>
+            farm.Farm_ID === draftData.farmId
+              ? {
+                  ...farm,
+                  coordinates: draftData.coordinates.map(
+                    (coord: Coordinate) => ({
+                      Latitude: coord.latitude,
+                      Longitude: coord.longitude,
+                    }),
+                  ),
+                }
+              : farm,
+          );
+        }
+
+        setFarms(farmsList);
+
+        // Load draft form data
+        setSoilType(draftData.soilType || '');
+        setSoilSuitability(draftData.soilSuitability || '');
+        setHectares(draftData.hectares?.toString() || '0.00');
+
+        // If creating new farm (no farmId), load coordinates into points
+        if (!draftData.farmId) {
+          console.log(
+            'DEBUG: Draft is for new farm, loading into points array',
+          );
+          setPoints(draftData.coordinates || []);
+          setIsCreatingNewFarmPlot(true);
+          if (draftData.coordinates && draftData.coordinates.length >= 3) {
+            setIsComplete(true);
+          }
+        }
+
+        setIsLoading(false);
+        return; // **EARLY RETURN - Do NOT proceed to API fetch**
+      } catch (error) {
+        console.error('Error loading draft data:', error);
+        setError('Failed to load draft data.');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // **Only reach here if NO draft data exists**
+    console.log('DEBUG: No draft data, fetching from API');
+    
+    if (!userToken) {
       setError('Authentication token is missing. Please log in.');
       setIsLoading(false);
       return;
     }
 
     try {
-      // Attempt to fetch area data (even if no token, just to try)
       const headers: any = {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${userToken}`,
       };
-      if (userToken) {
-        headers.Authorization = `Bearer ${userToken}`;
-      }
 
       const response = await axios.get(`${API_URL}/area/${areaId}`, {
         headers,
@@ -1339,22 +1671,8 @@ const FarmPlotCoordinates = () => {
 
       setFarms(farmsList);
 
-      // If loading from draft, use draft data for the current farm plot
-      if (draftData) {
-        setPoints(draftData.coordinates || []);
-        setSoilType(draftData.soilType || '');
-        setSoilSuitability(draftData.soilSuitability || '');
-        setHectares(draftData.hectares?.toString() || '0.00');
-        if (draftData.coordinates && draftData.coordinates.length >= 3) {
-          setIsComplete(true);
-        }
-        if (draftData.farmId) {
-          setSelectedFarmId(draftData.farmId);
-        } else {
-          setIsCreatingNewFarmPlot(true);
-        }
-      } else if (farmId && farmsList.length > 0) {
-        // If editing existing farm, load its coordinates from the API response
+      // If editing existing farm, load its coordinates
+      if (farmId && farmsList.length > 0) {
         const farmToEdit = farmsList.find((f) => f.Farm_ID === farmId);
         if (farmToEdit && farmToEdit.coordinates.length > 0) {
           const farmCoords: Coordinate[] =
@@ -1368,79 +1686,13 @@ const FarmPlotCoordinates = () => {
       const apiErrorMessage = (error.response?.data as { message?: string })
         ?.message;
 
-      // If online fetch fails but we have draft data, use offline mode
-      if (draftData && isNetworkError(error)) {
-        console.warn(
-          'Network error fetching area, using draft data as fallback',
-        );
-        // Use area boundaries from draft if available, otherwise use farm coordinates
-        setAreaData({
-          Area_ID: draftData.areaId,
-          Area_Name: draftData.areaName || '',
-          Area_Hectares: 0,
-          Province: '',
-          Region: '',
-          Area_Organization: '',
-          status: null as any,
-          // Use saved area boundaries from draft for map display
-          coordinates:
-            draftData.areaBoundaries && draftData.areaBoundaries.length > 0
-              ? draftData.areaBoundaries
-              : draftData.coordinates.map((c: Coordinate) => ({
-                  Latitude: c.latitude,
-                  Longitude: c.longitude,
-                })),
-        } as unknown as AreaEntry);
-        // Load existing farms from draft if available
-        const farmsList: Farm[] = (draftData.existingFarms || []).map(
-          (f: any) => ({
-            Farm_ID: f.Farm_ID,
-            Soil_Type: f.Soil_Type,
-            Soil_Suitability: f.Soil_Suitability,
-            Hectares: f.Hectares,
-            Status: f.Status,
-            coordinates: f.coordinates || [],
-          }),
-        );
-        setFarms(farmsList);
-        setPoints(draftData.coordinates || []);
-        setSoilType(draftData.soilType || '');
-        setSoilSuitability(draftData.soilSuitability || '');
-        setHectares(draftData.hectares?.toString() || '0.00');
-        setIsLoading(false);
-        if (draftData.coordinates && draftData.coordinates.length >= 3) {
-          setIsComplete(true);
-        }
-        if (draftData.farmId) {
-          setSelectedFarmId(draftData.farmId);
-        } else {
-          setIsCreatingNewFarmPlot(true);
-        }
-        // Show warning that we're using cached data
-        if (
-          draftData.areaBoundaries &&
-          draftData.areaBoundaries.length > 0 &&
-          draftData.existingFarms &&
-          draftData.existingFarms.length > 0
-        ) {
-          console.warn(
-            'Working offline: loaded area boundaries and existing farms from draft',
-          );
-        } else {
-          console.warn(
-            'Working offline: draft data available but area context may be limited',
-          );
-        }
-        return;
-      }
-
       setError(
         apiErrorMessage || 'Failed to load area details. Check network or API.',
       );
     } finally {
       setIsLoading(false);
     }
-  }, [areaId, userToken, signOut, farmId, route.params?.draftData]);
+  }, [areaId, userToken, signOut, farmId, route]);
 
   useEffect(() => {
     fetchAreaAndFarms();
@@ -1450,6 +1702,13 @@ const FarmPlotCoordinates = () => {
   useEffect(() => {
     setHasUnsavedChanges(true);
   }, [points, soilType, soilSuitability]);
+
+  // Track unsaved changes when editing farm coordinates
+  useEffect(() => {
+    if (isEditingCoordinates) {
+      setHasUnsavedChanges(true);
+    }
+  }, [editingFarmCoordinates, isEditingCoordinates]);
 
   const handleMapReady = useCallback(() => {
     if (
@@ -1650,36 +1909,61 @@ const FarmPlotCoordinates = () => {
       return;
     }
 
-    // Allow saving at any point, even with partial data
-    // Include area context (boundaries + existing farms) for offline support
-    const draftData: FarmPlotCoordinatesDraftData = {
-      areaId: areaId,
-      farmId: farmId,
-      soilType: soilType,
-      soilSuitability: soilSuitability,
-      coordinates: points,
-      hectares: parseFloat(hectares) || 0,
-      status: 'Inactive',
-      createdAt: Date.now(),
-      // Include area context for offline map display
-      areaName: areaData.Area_Name,
-      areaBoundaries: areaData.coordinates, // Land boundaries
-      existingFarms: farms.map((f) => ({
+    // Determine which coordinates to save based on current mode
+    let coordinatesToSave: Coordinate[] = [];
+    let farmIdToExclude: number | null = null;
+
+    if (isEditingCoordinates && selectedFarmId) {
+      // When editing, save the edited farm's coordinates from the farms array
+      const editedFarm = farms.find((f) => f.Farm_ID === selectedFarmId);
+      if (editedFarm && editedFarm.coordinates.length > 0) {
+        coordinatesToSave = convertBackendCoordinatesToCoordinates(
+          editedFarm.coordinates,
+        );
+      }
+      farmIdToExclude = selectedFarmId;
+    } else {
+      // When creating, use points array
+      coordinatesToSave = points;
+    }
+
+    // Exclude the farm being edited from existingFarms to avoid duplicates
+    const existingFarmsForDraft = farms
+      .filter((f) => f.Farm_ID !== farmIdToExclude)
+      .map((f) => ({
         Farm_ID: f.Farm_ID,
         Soil_Type: f.Soil_Type,
         Soil_Suitability: f.Soil_Suitability,
         Hectares: f.Hectares,
         Status: f.Status,
         coordinates: f.coordinates,
-      })), // Other farm plots
-      farmCount: farms.length, // Explicitly capture the count of existing farms
+      }));
+
+    // Allow saving at any point, even with partial data
+    // Include area context (boundaries + existing farms) for offline support
+    const draftData: FarmPlotCoordinatesDraftData = {
+      areaId: areaId,
+      farmId: farmId || selectedFarmId || undefined,
+      soilType: soilType,
+      soilSuitability: soilSuitability,
+      coordinates: coordinatesToSave,
+      hectares: parseFloat(hectares) || 0,
+      status: 'Inactive',
+      createdAt: Date.now(),
+      // Include area context for offline map display
+      areaName: areaData.Area_Name,
+      areaBoundaries: areaData.coordinates, // Land boundaries
+      existingFarms: existingFarmsForDraft, // Other farm plots (excluding the one being edited)
+      farmCount: existingFarmsForDraft.length, // Count of existing farms (excluding the one being edited)
     };
 
     try {
       await saveFarmPlotCoordinatesDraft(draftData);
       setHasUnsavedChanges(false);
+      Alert.alert('Success', 'Draft saved successfully!');
     } catch (error) {
       console.error('Error saving draft:', error);
+      Alert.alert('Error', 'Failed to save draft. Please try again.');
     }
   };
 
@@ -2026,6 +2310,19 @@ const FarmPlotCoordinates = () => {
             </TouchableOpacity>
 
             <TouchableOpacity
+              onPress={getCurrentUserLocation}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: Styles.button.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <FontAwesome name="location-arrow" size={20} color="black" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
               onPress={undoPoint}
               disabled={undoStack.length === 0}
               style={[
@@ -2091,6 +2388,39 @@ const FarmPlotCoordinates = () => {
                 name={isInsertingCoordinates ? 'check-circle' : 'plus-circle'}
                 size={28}
                 color="white"
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={getCurrentUserLocation}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: Styles.button.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+            >
+              <FontAwesome name="location-arrow" size={20} color="black" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleSaveDraft}
+              style={[
+                localStyles.actionButton,
+                {
+                  backgroundColor: hasUnsavedChanges
+                    ? '#F4D03F'
+                    : Styles.inputFields.backgroundColor,
+                  marginRight: 10,
+                },
+              ]}
+              disabled={!areaData}
+            >
+              <Entypo
+                name="save"
+                size={24}
+                color={hasUnsavedChanges ? 'black' : 'grey'}
               />
             </TouchableOpacity>
 
@@ -2663,8 +2993,46 @@ const FarmPlotCoordinates = () => {
             {isUpdating ? (
               <ActivityIndicator color={Styles.buttonText.color} />
             ) : (
-              <Text style={Styles.buttonText}>Save Coordinates</Text>
+              <Text style={Styles.buttonText}>Save Coordinates to Server</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              Styles.button,
+              localStyles.bottomButton,
+              { backgroundColor: '#F4D03F' },
+            ]}
+            onPress={() => {
+              // Update the farms array with the edited coordinates so the shape persists on the map
+              if (selectedFarmId) {
+                setFarms((prevFarms) =>
+                  prevFarms.map((farm) =>
+                    farm.Farm_ID === selectedFarmId
+                      ? {
+                          ...farm,
+                          coordinates: editingFarmCoordinates.map((coord) => ({
+                            Latitude: coord.latitude,
+                            Longitude: coord.longitude,
+                          })),
+                        }
+                      : farm,
+                  ),
+                );
+              }
+              // Close editing mode without uploading or saving to draft
+              setIsEditingCoordinates(false);
+              setIsInsertingCoordinates(false);
+              setEditingUndoStack([]);
+              setEditingRedoStack([]);
+              setFarmDetailsVisible(false);
+              setSelectedFarmId(null);
+            }}
+            disabled={isUpdating}
+          >
+            <Text style={[Styles.buttonText, { color: '#3D550C' }]}>
+              Close Edit
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -2679,7 +3047,9 @@ const FarmPlotCoordinates = () => {
             }}
             disabled={isUpdating}
           >
-            <Text style={localStyles.cancelButtonText}>Cancel Edit</Text>
+            <Text style={localStyles.cancelButtonText}>
+              Cancel Edit (Discard)
+            </Text>
           </TouchableOpacity>
         </View>
       )}
