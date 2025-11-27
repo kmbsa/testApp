@@ -30,7 +30,6 @@ function EmailVerification() {
   const [otp, setOtp] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(600); // 10 minutes in seconds
-  const [canResend, setCanResend] = useState<boolean>(false);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -45,7 +44,6 @@ function EmailVerification() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setCanResend(true);
           return 0;
         }
         return prev - 1;
@@ -157,7 +155,6 @@ function EmailVerification() {
         Alert.alert('Success', 'New OTP sent to your email!');
         setOtp('');
         setTimeLeft(600);
-        setCanResend(false);
         setResendCooldown(60); // 60 second cooldown after resend
       }
     } catch (error: any) {
@@ -182,53 +179,38 @@ function EmailVerification() {
   };
 
   const localStyles = StyleSheet.create({
-    container: {
+    safeArea: {
       flex: 1,
+    },
+    keyboardAvoidingView: {
+      flex: 1,
+      width: '100%',
+      alignItems: 'center',
+    },
+    scrollViewContent: {
+      flexGrow: 1,
       justifyContent: 'center',
       alignItems: 'center',
       paddingHorizontal: 20,
-    },
-    card: {
-      backgroundColor: '#FFFFFF',
-      borderRadius: 12,
-      padding: 24,
+      paddingVertical: 20,
       width: '100%',
-      maxWidth: 400,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 5,
     },
-    title: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: '#333',
-      marginBottom: 12,
-      textAlign: 'center',
+    formBox: {
+      width: 350,
+      paddingHorizontal: 20,
+      paddingVertical: 20,
     },
-    subtitle: {
-      fontSize: 14,
-      color: '#666',
-      marginBottom: 8,
-      textAlign: 'center',
-    },
-    emailText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: '#3D550C',
-      textAlign: 'center',
-      marginBottom: 20,
-    },
-    otpInputContainer: {
-      marginBottom: 20,
+    otpInputWrapper: {
+      alignItems: 'center',
+      marginBottom: 16,
     },
     otpInput: {
+      width: 300,
       backgroundColor: '#F5F5F5',
       borderWidth: 1,
       borderColor: '#E0E0E0',
       borderRadius: 8,
-      padding: 14,
+      padding: 12,
       fontSize: 20,
       letterSpacing: 4,
       textAlign: 'center',
@@ -238,123 +220,146 @@ function EmailVerification() {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 20,
+      marginBottom: 0,
     },
     timerText: {
-      fontSize: 14,
-      color: timeLeft < 60 ? '#D32F2F' : '#666',
+      fontSize: 12,
       fontWeight: '600',
     },
     buttonContainer: {
-      gap: 12,
-    },
-    verifyButton: {
-      backgroundColor: '#3D550C',
-      paddingVertical: 12,
-      borderRadius: 8,
+      marginTop: 20,
+      width: '100%',
       alignItems: 'center',
-      opacity: loading || !otp ? 0.6 : 1,
-    },
-    verifyButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
+      justifyContent: 'center',
+      gap: 12,
     },
     resendButton: {
       backgroundColor: '#F4D03F',
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      opacity: !canResend && resendCooldown === 0 ? 0.6 : 1,
     },
-    resendButtonText: {
-      color: '#333',
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    loginLink: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
+    backLinkContainer: {
       marginTop: 20,
-      gap: 4,
-    },
-    loginLinkText: {
-      fontSize: 14,
-      color: '#666',
-    },
-    loginLinkButton: {
-      fontSize: 14,
-      color: '#3D550C',
-      fontWeight: '600',
+      alignItems: 'center',
     },
   });
 
   return (
-    <SafeAreaView style={Styles.container}>
+    <SafeAreaView style={[Styles.container, localStyles.safeArea]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={localStyles.container}
+        style={localStyles.keyboardAvoidingView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            width: '100%',
-          }}
+          contentContainerStyle={localStyles.scrollViewContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={localStyles.card}>
-            <StatusBar style="auto" />
-
-            <Text style={localStyles.title}>Verify Your Email</Text>
-
-            <Text style={localStyles.subtitle}>
-              We've sent a 6-digit verification code to:
-            </Text>
-
-            <Text style={localStyles.emailText}>{email}</Text>
-
-            <View style={localStyles.otpInputContainer}>
-              <Text style={Styles.text}>Enter Verification Code:</Text>
-              <TextInput
-                placeholder="000000"
-                placeholderTextColor="#CCC"
-                style={localStyles.otpInput}
-                onChangeText={setOtp}
-                value={otp}
-                keyboardType="numeric"
-                maxLength={6}
-                editable={!loading}
-              />
-            </View>
-
-            <View style={localStyles.timerContainer}>
-              <Text style={localStyles.timerText}>
-                OTP expires in: {formatTime(timeLeft)}
+          <View style={[Styles.formBox, localStyles.formBox]}>
+            <View style={[Styles.fieldsContainer, { alignItems: 'center' }]}>
+              <Text style={[Styles.text, { textAlign: 'center' }]}>
+                Verify Your Email
               </Text>
+
+              <Text
+                style={[
+                  Styles.text,
+                  {
+                    fontSize: 14,
+                    marginBottom: 4,
+                    color: '#999',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                We sent a verification code to
+              </Text>
+
+              <Text
+                style={[
+                  Styles.text,
+                  {
+                    fontSize: 15,
+                    marginBottom: 4,
+                    marginTop: 4,
+                    color: '#DBD76A',
+                    fontWeight: '700',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                {email}
+              </Text>
+
+              <Text
+                style={[
+                  Styles.text,
+                  {
+                    fontSize: 14,
+                    marginBottom: 20,
+                    color: '#999',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                Please enter it below.
+              </Text>
+
+              <Text
+                style={[Styles.text, { textAlign: 'center', marginBottom: 16 }]}
+              >
+                Verification Code
+              </Text>
+
+              <View style={localStyles.otpInputWrapper}>
+                <TextInput
+                  style={[localStyles.otpInput]}
+                  placeholder="000000"
+                  placeholderTextColor="#CCC"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  editable={!loading}
+                />
+              </View>
+
+              <View style={localStyles.timerContainer}>
+                <Text
+                  style={[
+                    localStyles.timerText,
+                    { color: timeLeft < 60 ? '#D32F2F' : '#999' },
+                  ]}
+                >
+                  OTP expires in: {formatTime(timeLeft)}
+                </Text>
+              </View>
             </View>
 
             <View style={localStyles.buttonContainer}>
               <TouchableOpacity
-                style={localStyles.verifyButton}
                 onPress={handleVerifyEmail}
                 disabled={loading || !otp}
+                style={[Styles.button, loading && { opacity: 0.7 }]}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator
+                    size="small"
+                    color={Styles.buttonText.color}
+                  />
                 ) : (
-                  <Text style={localStyles.verifyButtonText}>Verify Email</Text>
+                  <Text style={Styles.buttonText}>Verify Email</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={localStyles.resendButton}
                 onPress={handleResendOTP}
                 disabled={loading || resendCooldown > 0}
+                style={[
+                  Styles.button,
+                  localStyles.resendButton,
+                  (loading || resendCooldown > 0) && { opacity: 0.6 },
+                ]}
               >
-                <Text style={localStyles.resendButtonText}>
+                <Text style={[Styles.buttonText, { color: '#333' }]}>
                   {resendCooldown > 0
                     ? `Resend in ${resendCooldown}s`
                     : 'Resend Code'}
@@ -362,15 +367,15 @@ function EmailVerification() {
               </TouchableOpacity>
             </View>
 
-            <View style={localStyles.loginLink}>
-              <Text style={localStyles.loginLinkText}>Don't have a code?</Text>
+            <View style={localStyles.backLinkContainer}>
               <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Text style={localStyles.loginLinkButton}>Go Back</Text>
+                <Text style={Styles.register}>Back</Text>
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <StatusBar style="auto" />
     </SafeAreaView>
   );
 }

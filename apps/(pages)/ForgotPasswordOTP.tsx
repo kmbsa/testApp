@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,11 +22,45 @@ import type { RootStackNavigationProp } from '../navigation/types';
 function ForgotPasswordOTP() {
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number>(600); // 10 minutes
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<any>();
 
   const email = route.params?.email || '';
+
+  // Timer for OTP expiration
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Timer for resend cooldown
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [resendCooldown]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleVerifyOTP = async () => {
     if (!otp) {
@@ -64,6 +98,34 @@ function ForgotPasswordOTP() {
     }
   };
 
+  const handleResendOTP = async () => {
+    if (resendCooldown > 0) {
+      Alert.alert('Please Wait', `Try again in ${resendCooldown} seconds`);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await axios.post(`${API_URL}/auth/forgot-password-request`, {
+        email,
+      });
+
+      Alert.alert('Success', 'New OTP sent to your email!');
+      setOtp('');
+      setTimeLeft(600); // Reset to 10 minutes
+      setResendCooldown(60); // 60 second cooldown
+    } catch (error: any) {
+      console.error('Resend OTP error:', error);
+      const errorMessage =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Failed to resend OTP. Please try again.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[Styles.container, localStyles.safeArea]}>
       <KeyboardAvoidingView
@@ -76,39 +138,91 @@ function ForgotPasswordOTP() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={[Styles.formBox, localStyles.formBox]}>
-            <View style={Styles.fieldsContainer}>
-              <Text style={Styles.text}>Verify Your Email</Text>
+            <View style={[Styles.fieldsContainer, { alignItems: 'center' }]}>
+              <Text style={[Styles.text, { textAlign: 'center' }]}>
+                Reset Your Password
+              </Text>
 
               <Text
                 style={[
                   Styles.text,
-                  { fontSize: 14, marginBottom: 20, color: '#666' },
+                  {
+                    fontSize: 14,
+                    marginBottom: 4,
+                    color: '#999',
+                    textAlign: 'center',
+                  },
                 ]}
               >
-                We sent a verification code to {email}. Please enter it below.
+                We sent a verification code to
               </Text>
 
-              <Text style={Styles.text}>Verification Code</Text>
-              <TextInput
-                style={Styles.inputFields}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={Styles.inputFields.borderColor}
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                maxLength={6}
-              />
+              <Text
+                style={[
+                  Styles.text,
+                  {
+                    fontSize: 15,
+                    marginBottom: 4,
+                    marginTop: 4,
+                    color: '#DBD76A',
+                    fontWeight: '700',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                {email}
+              </Text>
+
+              <Text
+                style={[
+                  Styles.text,
+                  {
+                    fontSize: 14,
+                    marginBottom: 20,
+                    color: '#999',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                Please enter it below.
+              </Text>
+
+              <Text
+                style={[Styles.text, { textAlign: 'center', marginBottom: 16 }]}
+              >
+                Verification Code
+              </Text>
+
+              <View style={localStyles.otpInputWrapper}>
+                <TextInput
+                  style={[localStyles.otpInput]}
+                  placeholder="000000"
+                  placeholderTextColor="#CCC"
+                  value={otp}
+                  onChangeText={setOtp}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={localStyles.timerContainer}>
+                <Text
+                  style={[
+                    localStyles.timerText,
+                    { color: timeLeft < 60 ? '#D32F2F' : '#999' },
+                  ]}
+                >
+                  OTP expires in: {formatTime(timeLeft)}
+                </Text>
+              </View>
             </View>
 
             <View style={localStyles.buttonContainer}>
               <TouchableOpacity
                 onPress={handleVerifyOTP}
-                disabled={isLoading}
-                style={[
-                  Styles.button,
-                  localStyles.verifyButton,
-                  isLoading && { opacity: 0.7 },
-                ]}
+                disabled={isLoading || !otp}
+                style={[Styles.button, isLoading && { opacity: 0.7 }]}
               >
                 {isLoading ? (
                   <ActivityIndicator
@@ -118,6 +232,22 @@ function ForgotPasswordOTP() {
                 ) : (
                   <Text style={Styles.buttonText}>Verify Code</Text>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleResendOTP}
+                disabled={isLoading || resendCooldown > 0}
+                style={[
+                  Styles.button,
+                  localStyles.resendButton,
+                  (isLoading || resendCooldown > 0) && { opacity: 0.6 },
+                ]}
+              >
+                <Text style={[Styles.buttonText, { color: '#333' }]}>
+                  {resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : 'Resend Code'}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -156,13 +286,42 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+  otpInputWrapper: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  otpInput: {
+    width: 300,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 20,
+    letterSpacing: 4,
+    textAlign: 'center',
+    fontFamily: 'monospace',
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   buttonContainer: {
     marginTop: 20,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
-  verifyButton: {},
+  resendButton: {
+    backgroundColor: '#F4D03F',
+  },
   backLinkContainer: {
     marginTop: 20,
     alignItems: 'center',
