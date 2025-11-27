@@ -99,6 +99,9 @@ export type RootStackParamList = {
   Test: undefined;
   EmailVerification: { user_id: number; email: string; first_name: string };
   TermsAndConditions: { source?: string } | undefined;
+  ForgotPassword: undefined;
+  ForgotPasswordOTP: { email: string };
+  ForgotPasswordNewPassword: { email: string; otp: string };
 };
 
 export type LoginScreenProps = NativeStackScreenProps<

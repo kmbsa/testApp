@@ -146,6 +146,7 @@ export default function UserActivityScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(
     null,
   );

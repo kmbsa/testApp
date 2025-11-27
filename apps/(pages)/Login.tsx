@@ -102,7 +102,7 @@ function Login() {
 
             <View style={{ alignItems: 'center' }}>
               <TouchableOpacity
-                onPress={() => Alert.alert('Feature Coming Soon!')}
+                onPress={() => navigation.navigate('ForgotPassword')}
               >
                 <Text style={Styles.register}>Forgot Your Password?</Text>
               </TouchableOpacity>

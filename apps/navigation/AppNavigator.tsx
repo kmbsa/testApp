@@ -12,6 +12,9 @@ import type { RootStackParamList } from './types';
 import AuthTabs from '../(pages)/_Layout';
 import EmailVerification from '../(pages)/EmailVerification';
 import TermsAndConditions from '../(pages)/UserAgreement';
+import ForgotPassword from '../(pages)/ForgotPassword';
+import ForgotPasswordOTP from '../(pages)/ForgotPasswordOTP';
+import ForgotPasswordNewPassword from '../(pages)/ForgotPasswordNewPassword';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -50,6 +53,30 @@ function RootStack() {
             component={TermsAndConditions}
             options={{
               title: 'Terms and Conditions',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPassword}
+            options={{
+              title: 'Forgot Password',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="ForgotPasswordOTP"
+            component={ForgotPasswordOTP}
+            options={{
+              title: 'Verify Email',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="ForgotPasswordNewPassword"
+            component={ForgotPasswordNewPassword}
+            options={{
+              title: 'Create New Password',
               headerShown: false,
             }}
           />
