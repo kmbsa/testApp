@@ -138,6 +138,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             ...getDeviceHeader(),
           },
         });
+        
+        // Check if email verification is required
+        if (!response.data.access_token && response.data.next_step === 'verify_email_otp') {
+          // Email not verified - store user data and navigate to OTP verification
+          console.log('Email verification required, redirecting to OTP screen');
+          setError(null);
+          
+          // Store the pending user data for OTP verification screen
+          await AsyncStorage.setItem('pending_verification_user_id', String(response.data.user_id));
+          await AsyncStorage.setItem('pending_verification_email', response.data.email);
+          await AsyncStorage.setItem('pending_verification_first_name', response.data.first_name);
+          
+          // Trigger navigation to OTP verification in the caller
+          throw {
+            response: {
+              data: {
+                code: 'VERIFICATION_REQUIRED',
+                message: response.data.message,
+                user_id: response.data.user_id,
+                email: response.data.email,
+                first_name: response.data.first_name,
+              }
+            }
+          };
+        }
+        
         const token = response.data.access_token;
         await AsyncStorage.setItem('access_token', token);
         setUserToken(token);
@@ -145,6 +171,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setError(null);
       } catch (e: any) {
         console.error('AuthContext: Sign in failed:', e.response?.data || e);
+        
+        // Check for verification required error
+        if (e.response?.data?.code === 'VERIFICATION_REQUIRED') {
+          setError(e.response.data.message);
+          throw e.response.data; // Re-throw so caller can handle navigation
+        }
+        
         setError(
           e.response?.data?.message ||
             'Sign in failed. Check your credentials.',

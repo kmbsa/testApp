@@ -37,6 +37,23 @@ function Login() {
       await signIn(emailOrUsername, password);
     } catch (error: any) {
       console.error('Login failed in component:', error);
+
+      // Check if verification is required
+      if (error.code === 'VERIFICATION_REQUIRED') {
+        Alert.alert('Email Verification Required', error.message, [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate to email verification screen
+              navigation.navigate('EmailVerification', {
+                user_id: error.user_id,
+                email: error.email,
+                first_name: error.first_name,
+              });
+            },
+          },
+        ]);
+      }
     }
   };
 
