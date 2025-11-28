@@ -213,6 +213,7 @@ import { usePhotosContext } from '../../../context/PhotosContext';
 import { useAuth } from '../../../context/AuthContext';
 
 import Styles from '../../../styles/styles';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 
 import gadm41_PHL_1 from '../../../../assets/data/gadm41_PHL_1.json';
 import {
@@ -885,6 +886,7 @@ export default function Map() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
+          ...getDeviceHeader(),
         },
         timeout: 10000,
       });

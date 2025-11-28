@@ -31,6 +31,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@env';
 import { Entypo } from '@expo/vector-icons';
 import { useAuth } from '../../../context/AuthContext';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 import Styles from '../../../styles/styles';
 import FormDropdown from '../../../components/FormDropdown';
 import { SoilTypeData } from '../../../../assets/data/SoilType';
@@ -1642,6 +1643,7 @@ const FarmPlotCoordinates = () => {
       const headers: any = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${userToken}`,
+        ...getDeviceHeader(),
       };
 
       const response = await axios.get(`${API_URL}/area/${areaId}`, {
@@ -1801,6 +1803,7 @@ const FarmPlotCoordinates = () => {
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${userToken}`,
+              ...getDeviceHeader(),
             },
             timeout: 10000,
           },
@@ -1819,6 +1822,7 @@ const FarmPlotCoordinates = () => {
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${userToken}`,
+              ...getDeviceHeader(),
             },
             timeout: 10000,
           },
@@ -1839,6 +1843,7 @@ const FarmPlotCoordinates = () => {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
+            ...getDeviceHeader(),
           },
           timeout: 10000,
         });
@@ -2875,6 +2880,7 @@ const FarmPlotCoordinates = () => {
                           headers: {
                             'Content-Type': 'application/json',
                             Authorization: `Bearer ${userToken}`,
+                            ...getDeviceHeader(),
                           },
                           timeout: 10000,
                         },
@@ -2961,6 +2967,7 @@ const FarmPlotCoordinates = () => {
                     headers: {
                       'Content-Type': 'application/json',
                       Authorization: `Bearer ${userToken}`,
+                      ...getDeviceHeader(),
                     },
                     timeout: 10000,
                   },

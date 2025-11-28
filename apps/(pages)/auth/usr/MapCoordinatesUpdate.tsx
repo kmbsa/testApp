@@ -28,6 +28,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 import Styles from '../../../styles/styles';
 import type {
   MapCoordinatesUpdateProps,
@@ -715,6 +716,7 @@ const MapCoordinatesUpdate = () => {
       // Attempt to fetch area data (even if no token, just to try)
       const headers: any = {
         'Content-Type': 'application/json',
+        ...getDeviceHeader(),
       };
       if (userToken) {
         headers.Authorization = `Bearer ${userToken}`;
@@ -886,6 +888,7 @@ const MapCoordinatesUpdate = () => {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
+            ...getDeviceHeader(),
           },
         },
       );

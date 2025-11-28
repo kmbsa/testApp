@@ -15,6 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_URL } from '@env';
 import axios from 'axios';
 import { useAuth } from '../../../context/AuthContext';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 import Styles from '../../../styles/styles';
 import { AreaEntry, RootStackNavigationProp } from '../../../navigation/types';
 
@@ -183,6 +184,7 @@ export default function MapEntriesScreen() {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
+            ...getDeviceHeader(),
           },
         });
 

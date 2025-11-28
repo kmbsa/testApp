@@ -20,6 +20,7 @@ import axios from 'axios';
 
 import { API_URL } from '@env';
 import { useAuth } from '../../../context/AuthContext';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 import Styles from '../../../styles/styles';
 import { AreaEntry, MapDetailsUpdateProps } from '../../../navigation/types';
 
@@ -79,6 +80,7 @@ const MapDetailsUpdate = () => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
+          ...getDeviceHeader(),
         },
       });
 
@@ -158,6 +160,7 @@ const MapDetailsUpdate = () => {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${userToken}`,
+            ...getDeviceHeader(),
           },
         },
       );

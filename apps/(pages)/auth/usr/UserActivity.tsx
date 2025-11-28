@@ -75,6 +75,10 @@ const getActivityTypeColor = (activityType: string): string => {
       return '#87CEEB'; // Sky blue
     case 'UPDATE':
       return '#DA70D6'; // Purple
+    case 'EMAIL_VERIFIED':
+      return '#20B2AA'; // Teal
+    case 'REGISTRATION_PENDING':
+      return '#FF8C00'; // Dark orange
     case 'LOGIN_FAILED':
       return '#FF4444'; // Dark red
     default:
@@ -95,10 +99,14 @@ const getActivityTypeIcon = (activityType: string): string => {
       return 'create';
     case 'REGISTRATION':
       return 'person-add';
+    case 'EMAIL_VERIFIED':
+      return 'checkmark-sharp';
+    case 'REGISTRATION_PENDING':
+      return 'mail-unread-outline';
     case 'LOGIN_FAILED':
       return 'alert-circle';
     default:
-      return 'info-circle';
+      return 'warning';
   }
 };
 
@@ -146,7 +154,6 @@ export default function UserActivityScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [hasMorePages, setHasMorePages] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState<ActivityLog | null>(
     null,
   );
@@ -213,7 +220,6 @@ export default function UserActivityScreen() {
 
         setCurrentPage(page);
         setTotalPages(response.data.pages || 1);
-        setHasMorePages(page < (response.data.pages || 1));
       } catch (error) {
         console.error('Failed to fetch activity logs:', error);
         if (!append) {

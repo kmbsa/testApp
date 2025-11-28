@@ -29,6 +29,7 @@ import axios from 'axios';
 import { API_URL, Weather_API_KEY } from '@env';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../context/AuthContext';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 import Styles from '../../../styles/styles';
 import {
   AreaEntry,
@@ -135,6 +136,7 @@ export default function AreaDetailsScreen() {
   );
   const [isCropsLoading, setIsCropsLoading] = useState(false);
   const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
+  const [isToggleFarmStatus, setIsToggleFarmStatus] = useState(false);
 
   const mapRef = useRef<MapView | null>(null);
 
@@ -174,6 +176,7 @@ export default function AreaDetailsScreen() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${userToken}`,
+          ...getDeviceHeader(),
         },
       });
 
@@ -408,6 +411,45 @@ export default function AreaDetailsScreen() {
     const cropCount = await getFarmCropCount(farm.Farm_ID);
     setSelectedFarmCropCount(cropCount);
     setFarmModalVisible(true);
+  };
+
+  // Helper: Toggle farm status
+  const handleToggleFarmStatus = async () => {
+    if (!selectedFarm || !userToken) return;
+
+    const newStatus = selectedFarm.Status === 'Active' ? 'Inactive' : 'Active';
+    setIsToggleFarmStatus(true);
+
+    try {
+      await axios.put(
+        `${API_URL}/area/${areaId}/farm/${selectedFarm.Farm_ID}/status`,
+        { status: newStatus },
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'application/json',
+            ...getDeviceHeader(),
+          },
+        },
+      );
+
+      // Update local state
+      setSelectedFarm({ ...selectedFarm, Status: newStatus });
+      setFarms((prevFarms) =>
+        prevFarms.map((farm) =>
+          farm.Farm_ID === selectedFarm.Farm_ID
+            ? { ...farm, Status: newStatus }
+            : farm,
+        ),
+      );
+
+      Alert.alert('Success', `Farm status changed to ${newStatus}`);
+    } catch (error) {
+      console.error('Failed to toggle farm status:', error);
+      Alert.alert('Error', 'Failed to change farm status. Please try again.');
+    } finally {
+      setIsToggleFarmStatus(false);
+    }
   };
 
   // Helper: Detect farm taps on map
@@ -837,6 +879,28 @@ export default function AreaDetailsScreen() {
                     <Text style={{ fontWeight: 'bold' }}>Ongoing Crops:</Text>{' '}
                     {selectedFarmCropCount}
                   </Text>
+
+                  <TouchableOpacity
+                    style={[
+                      Styles.button,
+                      localStyles.farmActivityButton,
+                      {
+                        backgroundColor:
+                          selectedFarm.Status === 'Active' ? '#28a745' : '#FFA500',
+                        marginVertical: 8,
+                      },
+                    ]}
+                    onPress={handleToggleFarmStatus}
+                    disabled={isToggleFarmStatus}
+                  >
+                    <Text style={Styles.buttonText}>
+                      {isToggleFarmStatus
+                        ? 'Updating...'
+                        : selectedFarm.Status === 'Active'
+                          ? 'Set Inactive'
+                          : 'Set Active'}
+                    </Text>
+                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[Styles.button, localStyles.farmActivityButton]}

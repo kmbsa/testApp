@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_URL } from '@env';
@@ -21,6 +21,7 @@ import DropdownComponent, {
   DropdownItem,
 } from '../../../components/FormDropdown';
 import { philippineCrops } from '../../../../assets/data/Crops';
+import { getDeviceHeader } from '../../../utils/deviceDetection';
 
 // --- Utility: Flatten Crops data for Dropdown ---
 const getAllCropOptions = (): DropdownItem[] => {
@@ -42,6 +43,12 @@ interface HarvestRecord {
   status: 'Ongoing' | 'Completed' | 'Planned' | string;
 }
 
+const STATUS_OPTIONS: DropdownItem[] = [
+  { label: 'Planned', value: 'Planned' },
+  { label: 'Ongoing', value: 'Ongoing' },
+  { label: 'Completed', value: 'Completed' },
+];
+
 export default function FarmActivityManagerScreen() {
   const route = useRoute();
   const navigation = useNavigation();
@@ -56,6 +63,9 @@ export default function FarmActivityManagerScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<HarvestRecord | null>(
+    null,
+  );
 
   // --- Form State ---
   const [newCrop, setNewCrop] = useState<string | null>(null);
@@ -63,6 +73,7 @@ export default function FarmActivityManagerScreen() {
   const [harvestDate, setHarvestDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Default 1 week later
   );
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [showSowDatePicker, setShowSowDatePicker] = useState(false);
   const [showHarvestDatePicker, setShowHarvestDatePicker] = useState(false);
 
@@ -87,6 +98,7 @@ export default function FarmActivityManagerScreen() {
       const response = await axios.get<{ harvests: HarvestRecord[] }>(url, {
         headers: {
           Authorization: `Bearer ${token}`,
+          ...getDeviceHeader(),
         },
       });
 
@@ -201,6 +213,7 @@ export default function FarmActivityManagerScreen() {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          ...getDeviceHeader(),
         },
       });
 
@@ -215,7 +228,7 @@ export default function FarmActivityManagerScreen() {
       setSowDate(new Date());
       setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setIsFormVisible(false);
-    } catch (error: AxiosError | any) {
+    } catch (error: any) {
       const errorMessage =
         error.response?.data?.message ||
         'Failed to save activity. Please try again.';
@@ -224,6 +237,99 @@ export default function FarmActivityManagerScreen() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // --- Edit Handler ---
+  const handleEditRecord = (record: HarvestRecord) => {
+    setEditingRecord(record);
+    setNewCrop(record.cropName);
+    setSowDate(new Date(record.Sow_Date));
+    setHarvestDate(new Date(record.Expected_Harvest_Date));
+    setSelectedStatus(record.status);
+    setIsFormVisible(true);
+  };
+
+  // --- Update Handler ---
+  const handleUpdateActivity = async () => {
+    if (
+      !editingRecord ||
+      !newCrop ||
+      !sowDate ||
+      !harvestDate ||
+      !selectedStatus
+    ) {
+      Alert.alert('Missing Fields', 'Please fill all fields.');
+      return;
+    }
+
+    if (sowDate >= harvestDate) {
+      Alert.alert('Invalid Dates', 'Harvest date must be after sow date.');
+      return;
+    }
+
+    if (!token) {
+      Alert.alert(
+        'Authentication Error',
+        'User not logged in. Cannot update data.',
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        harvest_id: editingRecord.Harvest_ID,
+        sow_date: formatDate(sowDate),
+        harvest_date: formatDate(harvestDate),
+        status: selectedStatus,
+      };
+
+      await axios.put(
+        `${API_URL}/area/farm_harvest/${editingRecord.Harvest_ID}`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            ...getDeviceHeader(),
+          },
+        },
+      );
+
+      await fetchHarvestData();
+
+      Alert.alert(
+        'Success',
+        `Updated ${newCrop} to status: ${selectedStatus}.`,
+      );
+
+      // Reset form
+      setEditingRecord(null);
+      setNewCrop(null);
+      setSowDate(new Date());
+      setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      setSelectedStatus(null);
+      setIsFormVisible(false);
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        'Failed to update activity. Please try again.';
+      console.error('Update failed:', error);
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // --- Cancel Edit Handler ---
+  const handleCancelEdit = () => {
+    setEditingRecord(null);
+    setNewCrop(null);
+    setSowDate(new Date());
+    setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    setSelectedStatus(null);
+    setIsFormVisible(false);
   };
 
   // --- Rendering Functions (Fixed) ---
@@ -253,13 +359,22 @@ export default function FarmActivityManagerScreen() {
         <Text style={{ fontWeight: 'bold' }}>Expected Harvest:</Text>
         <Text> {record.Expected_Harvest_Date}</Text>
       </Text>
+      <TouchableOpacity
+        style={localStyles.editButton}
+        onPress={() => handleEditRecord(record)}
+      >
+        <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+        <Text style={localStyles.editButtonText}>Edit</Text>
+      </TouchableOpacity>
     </View>
   );
 
   const renderActivityForm = () => (
     <View style={localStyles.formContainer}>
       <Text style={localStyles.formTitle}>
-        Add New Farm Plan for Farm ID: {farmId || areaId}
+        {editingRecord
+          ? `Edit Farm Plan - ${editingRecord.cropName}`
+          : `Add New Farm Plan for Farm ID: ${farmId || areaId}`}
       </Text>
 
       {/* Crop Dropdown */}
@@ -310,21 +425,38 @@ export default function FarmActivityManagerScreen() {
         />
       )}
 
+      {/* Status Dropdown - Only show when editing */}
+      {editingRecord && (
+        <>
+          <Text style={localStyles.inputLabel}>Status</Text>
+          <DropdownComponent
+            data={STATUS_OPTIONS}
+            onValueChange={(value) => setSelectedStatus(value)}
+            value={selectedStatus}
+            placeholder="Select status..."
+          />
+        </>
+      )}
+
       <TouchableOpacity
         style={[Styles.button, localStyles.saveButton, localStyles.button]}
-        onPress={handleSaveActivity}
+        onPress={editingRecord ? handleUpdateActivity : handleSaveActivity}
         disabled={isSubmitting}
       >
         {isSubmitting ? (
           <ActivityIndicator color={Styles.buttonText.color} />
         ) : (
-          <Text style={Styles.buttonText}>Save Plan</Text>
+          <Text style={Styles.buttonText}>
+            {editingRecord ? 'Update Plan' : 'Save Plan'}
+          </Text>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[localStyles.cancelButton, localStyles.button]}
-        onPress={() => setIsFormVisible(false)}
+        onPress={
+          editingRecord ? handleCancelEdit : () => setIsFormVisible(false)
+        }
       >
         <Text style={localStyles.cancelButtonText}>Cancel</Text>
       </TouchableOpacity>
@@ -531,6 +663,22 @@ const localStyles = StyleSheet.create({
   statusPlanned: {
     backgroundColor: '#ffc107', // Yellow/Orange
     color: '#333',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#007bff',
+    borderRadius: 6,
+  },
+  editButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   button: {
     justifyContent: 'center',
