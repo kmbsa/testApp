@@ -25,6 +25,8 @@ import {
 } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { API_URL, Weather_API_KEY } from '@env';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
@@ -137,6 +139,11 @@ export default function AreaDetailsScreen() {
   const [isCropsLoading, setIsCropsLoading] = useState(false);
   const [cropsFetchError, setCropsFetchError] = useState<string | null>(null);
   const [isToggleFarmStatus, setIsToggleFarmStatus] = useState(false);
+  const [isPhotoManagementMode, setIsPhotoManagementMode] = useState(false);
+  const [selectedPhotosForDeletion, setSelectedPhotosForDeletion] = useState<
+    number[]
+  >([]);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
 
   const mapRef = useRef<MapView | null>(null);
   const [mapType, setMapType] = useState<'hybrid' | 'standard'>('hybrid');
@@ -412,6 +419,189 @@ export default function AreaDetailsScreen() {
     const cropCount = await getFarmCropCount(farm.Farm_ID);
     setSelectedFarmCropCount(cropCount);
     setFarmModalVisible(true);
+  };
+
+  // Toggle photo selection for deletion
+  const togglePhotoSelection = (imageId: number) => {
+    setSelectedPhotosForDeletion((prev) =>
+      prev.includes(imageId)
+        ? prev.filter((id) => id !== imageId)
+        : [...prev, imageId],
+    );
+  };
+
+  // Delete selected photos
+  const handleDeletePhotos = async () => {
+    if (selectedPhotosForDeletion.length === 0) {
+      Alert.alert('No Photos Selected', 'Please select photos to delete.');
+      return;
+    }
+
+    Alert.alert(
+      'Confirm Delete',
+      `Delete ${selectedPhotosForDeletion.length} photo(s)? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const deletePromises = selectedPhotosForDeletion.map((imageId) =>
+                axios.delete(`${API_URL}/area/${areaId}/photo/${imageId}`, {
+                  headers: {
+                    Authorization: `Bearer ${userToken}`,
+                    ...getDeviceHeader(),
+                  },
+                }),
+              );
+
+              await Promise.all(deletePromises);
+
+              // Update local state
+              setAreaData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      images: prev.images.filter(
+                        (img: BackendPhoto) =>
+                          !selectedPhotosForDeletion.includes(img.Image_ID),
+                      ),
+                    }
+                  : null,
+              );
+
+              setSelectedPhotosForDeletion([]);
+              Alert.alert('Success', 'Photos deleted successfully.');
+            } catch (error) {
+              console.error('Error deleting photos:', error);
+              Alert.alert(
+                'Error',
+                'Failed to delete photos. Please try again.',
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Pick image from library
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please enable media library access in settings.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await uploadPhoto(result.assets[0]);
+    }
+  };
+
+  // Take photo with camera
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please enable camera access in settings.',
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      await uploadPhoto(result.assets[0]);
+    }
+  };
+
+  // Upload photo to backend
+  const uploadPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
+    setIsUploadingPhotos(true);
+    try {
+      let base64Data: string | null = null;
+
+      if (asset.base64) {
+        base64Data = asset.base64;
+      } else if (asset.uri) {
+        try {
+          base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (readError) {
+          console.error('Failed to read base64 from asset URI:', readError);
+          Alert.alert('Error', 'Could not read image data for upload.');
+          setIsUploadingPhotos(false);
+          return;
+        }
+      }
+
+      if (!base64Data) {
+        Alert.alert('Error', 'No image data available to process.');
+        setIsUploadingPhotos(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('photo', {
+        uri: asset.uri,
+        type: asset.mimeType || 'image/jpeg',
+        name: asset.fileName || `photo_${Date.now()}.jpg`,
+      } as any);
+
+      const response = await axios.post(
+        `${API_URL}/area/${areaId}/photos`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            'Content-Type': 'multipart/form-data',
+            ...getDeviceHeader(),
+          },
+        },
+      );
+
+      // Update local state with new photo
+      if (response.data && response.data.image) {
+        setAreaData((prev) =>
+          prev
+            ? {
+                ...prev,
+                images: [...(prev.images || []), response.data.image],
+              }
+            : null,
+        );
+        Alert.alert('Success', 'Photo uploaded successfully.');
+      }
+    } catch (error: any) {
+      console.error('Error uploading photo:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message ||
+          'Failed to upload photo. Please try again.',
+      );
+    } finally {
+      setIsUploadingPhotos(false);
+    }
   };
 
   // Helper: Toggle farm status
@@ -726,40 +916,173 @@ export default function AreaDetailsScreen() {
               >
                 <Text style={Styles.buttonText}>Update Coordinates</Text>
               </TouchableOpacity>
-              <Text
-                style={[
-                  localStyles.modalText,
-                  { marginTop: 15, fontWeight: 'bold' },
-                ]}
+              <View
+                style={[localStyles.imagesHeaderContainer, { marginTop: 15 }]}
               >
-                Images:
-              </Text>
-              {areaData.images && areaData.images.length > 0 ? (
-                <View style={localStyles.imageGrid}>
-                  {areaData.images.map((image: BackendPhoto, index: number) => (
-                    <TouchableOpacity
-                      key={image.Image_ID.toString()}
-                      onPress={() => openImageViewer(index)}
+                <Text style={{ fontWeight: 'bold', flex: 1 }}>Images:</Text>
+                {areaData.images && areaData.images.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setIsPhotoManagementMode(!isPhotoManagementMode);
+                      setSelectedPhotosForDeletion([]);
+                    }}
+                    style={localStyles.managementToggleButton}
+                  >
+                    <MaterialCommunityIcons
+                      name={isPhotoManagementMode ? 'close' : 'pencil'}
+                      size={18}
+                      color="#fff"
+                    />
+                    <Text
+                      style={{ color: '#fff', fontSize: 12, marginLeft: 4 }}
                     >
-                      <Image
-                        source={{ uri: `${API_URL}/${image.Filepath}` }}
-                        style={localStyles.imageThumbnail}
-                        onError={(e) => {
-                          console.error(
-                            'Image load error for URL:',
-                            `${API_URL}/${image.Filepath}`,
-                            'Error:',
-                            e.nativeEvent.error,
-                          );
-                        }}
-                      />
+                      {isPhotoManagementMode ? 'Done' : 'Edit'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {areaData.images && areaData.images.length > 0 ? (
+                <>
+                  <View style={localStyles.imageGrid}>
+                    {areaData.images.map(
+                      (image: BackendPhoto, index: number) => (
+                        <TouchableOpacity
+                          key={image.Image_ID.toString()}
+                          onPress={() => {
+                            if (isPhotoManagementMode) {
+                              togglePhotoSelection(image.Image_ID);
+                            } else {
+                              openImageViewer(index);
+                            }
+                          }}
+                          style={[
+                            localStyles.imageThumbnailContainer,
+                            selectedPhotosForDeletion.includes(
+                              image.Image_ID,
+                            ) && localStyles.imageThumbnailSelected,
+                          ]}
+                        >
+                          <Image
+                            source={{ uri: `${API_URL}/${image.Filepath}` }}
+                            style={localStyles.imageThumbnail}
+                            onError={(e) => {
+                              console.error(
+                                'Image load error for URL:',
+                                `${API_URL}/${image.Filepath}`,
+                                'Error:',
+                                e.nativeEvent.error,
+                              );
+                            }}
+                          />
+                          {isPhotoManagementMode &&
+                            selectedPhotosForDeletion.includes(
+                              image.Image_ID,
+                            ) && (
+                              <View style={localStyles.selectedCheckmark}>
+                                <MaterialCommunityIcons
+                                  name="check-circle"
+                                  size={32}
+                                  color="#28a745"
+                                />
+                              </View>
+                            )}
+                        </TouchableOpacity>
+                      ),
+                    )}
+                    {/* Add Photo Button */}
+                    <TouchableOpacity
+                      style={[
+                        localStyles.imageThumbnailContainer,
+                        localStyles.addPhotoButton,
+                      ]}
+                      onPress={() => {
+                        Alert.alert('Add Photo', 'Choose a method:', [
+                          {
+                            text: 'Camera',
+                            onPress: handleTakePhoto,
+                          },
+                          {
+                            text: 'Library',
+                            onPress: handlePickImage,
+                          },
+                          { text: 'Cancel', style: 'cancel' },
+                        ]);
+                      }}
+                      disabled={isUploadingPhotos}
+                    >
+                      {isUploadingPhotos ? (
+                        <ActivityIndicator
+                          size="large"
+                          color={Styles.button.backgroundColor}
+                        />
+                      ) : (
+                        <MaterialCommunityIcons
+                          name="plus"
+                          size={40}
+                          color="#999"
+                        />
+                      )}
                     </TouchableOpacity>
-                  ))}
-                </View>
+                  </View>
+
+                  {isPhotoManagementMode && (
+                    <View style={localStyles.deleteButtonContainer}>
+                      <TouchableOpacity
+                        style={[
+                          Styles.button,
+                          localStyles.deleteButton,
+                          selectedPhotosForDeletion.length === 0 && {
+                            opacity: 0.5,
+                          },
+                        ]}
+                        onPress={handleDeletePhotos}
+                        disabled={selectedPhotosForDeletion.length === 0}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can"
+                          size={20}
+                          color="#fff"
+                        />
+                        <Text style={[Styles.buttonText, { marginLeft: 8 }]}>
+                          Delete ({selectedPhotosForDeletion.length})
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
               ) : (
-                <Text style={localStyles.noImagesText}>
-                  No images associated with this entry.
-                </Text>
+                <View style={localStyles.noImagesContainer}>
+                  <Text style={localStyles.noImagesText}>
+                    No images associated with this entry.
+                  </Text>
+                  <TouchableOpacity
+                    style={[Styles.button, { marginTop: 10 }]}
+                    onPress={() => {
+                      Alert.alert('Add Photo', 'Choose a method:', [
+                        {
+                          text: 'Camera',
+                          onPress: handleTakePhoto,
+                        },
+                        {
+                          text: 'Library',
+                          onPress: handlePickImage,
+                        },
+                        { text: 'Cancel', style: 'cancel' },
+                      ]);
+                    }}
+                    disabled={isUploadingPhotos}
+                  >
+                    <MaterialCommunityIcons
+                      name="plus"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={[Styles.buttonText, { marginLeft: 8 }]}>
+                      Add Photo
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
               {/* === Farm Activity Section === */}
               <View style={localStyles.farmActivityContainer}>
@@ -1123,5 +1446,57 @@ const localStyles = StyleSheet.create({
     width: '100%',
     marginTop: 15,
     backgroundColor: '#F4D03F',
+  },
+  imagesHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  managementToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007BFF',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+  },
+  imageThumbnailContainer: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#ddd',
+  },
+  imageThumbnailSelected: {
+    borderWidth: 3,
+    borderColor: '#28a745',
+  },
+  selectedCheckmark: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+  },
+  addPhotoButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#999',
+  },
+  deleteButtonContainer: {
+    marginTop: 15,
+    width: '100%',
+  },
+  deleteButton: {
+    backgroundColor: '#dc3545',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noImagesContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
   },
 });
