@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_URL } from '@env';
@@ -22,6 +22,10 @@ import DropdownComponent, {
 } from '../../../components/FormDropdown';
 import { philippineCrops } from '../../../../assets/data/Crops';
 import { getDeviceHeader } from '../../../utils/deviceDetection';
+import {
+  saveOfflineSubmission,
+  isNetworkError,
+} from '../../../utils/OfflineSubmissionManager';
 
 // --- Utility: Flatten Crops data for Dropdown ---
 const getAllCropOptions = (): DropdownItem[] => {
@@ -199,16 +203,16 @@ export default function FarmActivityManagerScreen() {
       statusToSubmit = 'Planned';
     }
 
-    try {
-      const payload = {
-        area_id: areaId,
-        farm_id: farmId,
-        crop_type: newCrop,
-        sow_date: formatDate(sowDate),
-        harvest_date: formatDate(harvestDate),
-        status: statusToSubmit,
-      };
+    const payload = {
+      area_id: areaId,
+      farm_id: farmId,
+      crop_type: newCrop,
+      sow_date: formatDate(sowDate),
+      harvest_date: formatDate(harvestDate),
+      status: statusToSubmit,
+    };
 
+    try {
       await axios.post(`${API_URL}/area/farm_harvest`, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -229,11 +233,45 @@ export default function FarmActivityManagerScreen() {
       setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setIsFormVisible(false);
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message ||
-        'Failed to save activity. Please try again.';
-      console.error('Submission failed:', error);
-      Alert.alert('Error', errorMessage);
+      const apiError = error as AxiosError;
+
+      // Check if this is a network error (offline scenario)
+      if (isNetworkError(apiError)) {
+        try {
+          // Save the harvest data for offline sync
+          await saveOfflineSubmission(
+            'farm',
+            '/area/farm_harvest',
+            'POST',
+            payload,
+          );
+
+          Alert.alert(
+            'Offline Mode',
+            'You are currently offline. Your farm activity has been saved locally and will be submitted automatically when your connection is restored.',
+            [{ text: 'OK' }],
+          );
+
+          // Reset form
+          setNewCrop(null);
+          setSowDate(new Date());
+          setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+          setIsFormVisible(false);
+        } catch (offlineError) {
+          console.error('Failed to save offline submission:', offlineError);
+          Alert.alert(
+            'Error',
+            'Could not save your submission offline. Please check your storage.',
+          );
+        }
+      } else {
+        // Server error or other issue
+        const errorMessage =
+          error.response?.data?.message ||
+          'Failed to save activity. Please try again.';
+        console.error('Submission failed:', error);
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -277,14 +315,14 @@ export default function FarmActivityManagerScreen() {
 
     setIsSubmitting(true);
 
-    try {
-      const payload = {
-        harvest_id: editingRecord.Harvest_ID,
-        sow_date: formatDate(sowDate),
-        harvest_date: formatDate(harvestDate),
-        status: selectedStatus,
-      };
+    const payload = {
+      harvest_id: editingRecord.Harvest_ID,
+      sow_date: formatDate(sowDate),
+      harvest_date: formatDate(harvestDate),
+      status: selectedStatus,
+    };
 
+    try {
       await axios.put(
         `${API_URL}/area/farm_harvest/${editingRecord.Harvest_ID}`,
         payload,
@@ -312,11 +350,47 @@ export default function FarmActivityManagerScreen() {
       setSelectedStatus(null);
       setIsFormVisible(false);
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.message ||
-        'Failed to update activity. Please try again.';
-      console.error('Update failed:', error);
-      Alert.alert('Error', errorMessage);
+      const apiError = error as AxiosError;
+
+      // Check if this is a network error (offline scenario)
+      if (isNetworkError(apiError)) {
+        try {
+          // Save the updated harvest data for offline sync
+          await saveOfflineSubmission(
+            'farm',
+            `/area/farm_harvest/${editingRecord.Harvest_ID}`,
+            'PUT',
+            payload,
+          );
+
+          Alert.alert(
+            'Offline Mode',
+            'You are currently offline. Your farm activity update has been saved locally and will be submitted automatically when your connection is restored.',
+            [{ text: 'OK' }],
+          );
+
+          // Reset form
+          setEditingRecord(null);
+          setNewCrop(null);
+          setSowDate(new Date());
+          setHarvestDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+          setSelectedStatus(null);
+          setIsFormVisible(false);
+        } catch (offlineError) {
+          console.error('Failed to save offline submission:', offlineError);
+          Alert.alert(
+            'Error',
+            'Could not save your submission offline. Please check your storage.',
+          );
+        }
+      } else {
+        // Server error or other issue
+        const errorMessage =
+          error.response?.data?.message ||
+          'Failed to update activity. Please try again.';
+        console.error('Update failed:', error);
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
