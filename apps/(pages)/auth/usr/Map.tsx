@@ -378,6 +378,7 @@ export default function Map() {
 
   const mapRef = useRef<MapView | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapType, setMapType] = useState<'hybrid' | 'standard'>('hybrid');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [areaName, setAreaName] = useState('');
@@ -765,6 +766,10 @@ export default function Map() {
     setModalVisible(true);
     panY.setValue(0);
     setCurrentPage(1); // Ensure it opens on page 1
+  };
+
+  const handleToggleMapType = () => {
+    setMapType((prevType) => (prevType === 'hybrid' ? 'standard' : 'hybrid'));
   };
 
   function clearForms() {
@@ -1363,7 +1368,7 @@ export default function Map() {
         style={{ flex: 1 }}
         onMapReady={handleMapReady}
         onPress={handleMapPress}
-        mapType="hybrid"
+        mapType={mapType}
         followsUserLocation={true}
         initialRegion={{
           latitude: 12.8797,
@@ -1474,6 +1479,25 @@ export default function Map() {
 
       <SafeAreaView style={localStyles.undoRedoClearContainer}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={handleToggleMapType}
+            style={[
+              localStyles.clearButton,
+              {
+                backgroundColor: Styles.button.backgroundColor,
+                padding: 8,
+                borderRadius: 20,
+                marginRight: 10,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={mapType === 'hybrid' ? 'satellite-variant' : 'map'}
+              size={30}
+              color="black"
+            />
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={handleClearMap}
             disabled={points.length === 0}

@@ -139,6 +139,7 @@ export default function AreaDetailsScreen() {
   const [isToggleFarmStatus, setIsToggleFarmStatus] = useState(false);
 
   const mapRef = useRef<MapView | null>(null);
+  const [mapType, setMapType] = useState<'hybrid' | 'standard'>('hybrid');
 
   const areaId =
     typeof route.params?.areaId === 'number'
@@ -556,6 +557,10 @@ export default function AreaDetailsScreen() {
     }),
   );
 
+  const handleToggleMapType = () => {
+    setMapType((prevType) => (prevType === 'hybrid' ? 'standard' : 'hybrid'));
+  };
+
   return (
     <View style={[localStyles.safeArea, { paddingTop: insets.top }]}>
       <View style={localStyles.header}>
@@ -568,7 +573,16 @@ export default function AreaDetailsScreen() {
         <View style={localStyles.headerTitleContainer}>
           <Text style={localStyles.title}>{areaData.Area_Name}</Text>
         </View>
-        <View style={{ width: 34 }} />
+        <TouchableOpacity
+          onPress={handleToggleMapType}
+          style={localStyles.backButton}
+        >
+          <MaterialCommunityIcons
+            name={mapType === 'hybrid' ? 'satellite-variant' : 'map'}
+            size={24}
+            color={Styles.text.color}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={localStyles.container}>
@@ -577,7 +591,7 @@ export default function AreaDetailsScreen() {
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           style={localStyles.map}
           initialRegion={getInitialRegion(areaData)}
-          mapType="hybrid"
+          mapType={mapType}
           onPress={handleMapPress}
           onMapReady={() => {
             if (mapCoordinates.length > 0 && mapRef.current) {
@@ -886,7 +900,9 @@ export default function AreaDetailsScreen() {
                       localStyles.farmActivityButton,
                       {
                         backgroundColor:
-                          selectedFarm.Status === 'Active' ? '#28a745' : '#FFA500',
+                          selectedFarm.Status === 'Active'
+                            ? '#28a745'
+                            : '#FFA500',
                         marginVertical: 8,
                       },
                     ]}

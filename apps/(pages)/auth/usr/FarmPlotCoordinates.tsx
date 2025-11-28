@@ -598,6 +598,7 @@ const FarmPlotCoordinates = () => {
 
   const { userToken, signOut } = useAuth();
   const mapRef = useRef<MapView | null>(null);
+  const [mapType, setMapType] = useState<'hybrid' | 'standard'>('hybrid');
 
   const areaId = route.params?.areaId;
   const farmId = route.params?.farmId;
@@ -1536,7 +1537,7 @@ const FarmPlotCoordinates = () => {
 
   const fetchAreaAndFarms = useCallback(async () => {
     setIsLoading(true);
-    
+
     if (!areaId) {
       setError('Area ID is missing.');
       setIsLoading(false);
@@ -1546,7 +1547,7 @@ const FarmPlotCoordinates = () => {
     // **CRITICAL: Check for draft data FIRST and return early if found**
     // This ensures draft is NEVER overwritten by API data
     const draftData = route.params?.draftData;
-    
+
     if (draftData) {
       console.log('DEBUG: Draft data detected, loading ONLY from draft');
       try {
@@ -1632,7 +1633,7 @@ const FarmPlotCoordinates = () => {
 
     // **Only reach here if NO draft data exists**
     console.log('DEBUG: No draft data, fetching from API');
-    
+
     if (!userToken) {
       setError('Authentication token is missing. Please log in.');
       setIsLoading(false);
@@ -1729,6 +1730,10 @@ const FarmPlotCoordinates = () => {
       }
     }
   }, [areaData]);
+
+  const handleToggleMapType = () => {
+    setMapType((prevType) => (prevType === 'hybrid' ? 'standard' : 'hybrid'));
+  };
 
   const handleConfirmUpdate = () => {
     if (!isCreatingNewFarmPlot && !farmId) {
@@ -2053,6 +2058,16 @@ const FarmPlotCoordinates = () => {
             {farmId ? `Edit: ${areaData.Area_Name}` : areaData.Area_Name}
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={handleToggleMapType}
+          style={localStyles.backButton}
+        >
+          <MaterialCommunityIcons
+            name={mapType === 'hybrid' ? 'satellite-variant' : 'map'}
+            size={24}
+            color={Styles.text.color}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* --- MAP VIEW --- */}
@@ -2062,7 +2077,7 @@ const FarmPlotCoordinates = () => {
         style={{ flex: 1 }}
         onMapReady={handleMapReady}
         onPress={handleMapPress}
-        mapType="hybrid"
+        mapType={mapType}
         initialRegion={
           areaData?.coordinates && areaData.coordinates.length > 0
             ? {

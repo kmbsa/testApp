@@ -434,6 +434,7 @@ const MapCoordinatesUpdate = () => {
 
   const { userToken, signOut } = useAuth();
   const mapRef = useRef<MapView | null>(null);
+  const [mapType, setMapType] = useState<'hybrid' | 'standard'>('hybrid');
 
   const areaId = route.params?.areaId;
 
@@ -988,6 +989,10 @@ const MapCoordinatesUpdate = () => {
     );
   }
 
+  const handleToggleMapType = () => {
+    setMapType((prevType) => (prevType === 'hybrid' ? 'standard' : 'hybrid'));
+  };
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: Styles.background.backgroundColor }}
@@ -1024,6 +1029,16 @@ const MapCoordinatesUpdate = () => {
             Updating: {areaData?.Area_Name || 'Area Coordinates'}
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={handleToggleMapType}
+          style={localStyles.backButton}
+        >
+          <MaterialCommunityIcons
+            name={mapType === 'hybrid' ? 'satellite-variant' : 'map'}
+            size={24}
+            color={Styles.text.color}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* --- MAP VIEW --- */}
@@ -1033,7 +1048,7 @@ const MapCoordinatesUpdate = () => {
         style={{ flex: 1 }}
         onMapReady={handleMapReady}
         onPress={handleMapPress} // Map press handles insertion, now with conflict resolution
-        mapType="hybrid"
+        mapType={mapType}
         initialRegion={
           points.length > 0
             ? {
