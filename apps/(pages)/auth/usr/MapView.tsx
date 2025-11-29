@@ -919,7 +919,7 @@ export default function AreaDetailsScreen() {
               <View
                 style={[localStyles.imagesHeaderContainer, { marginTop: 15 }]}
               >
-                <Text style={{ fontWeight: 'bold', flex: 1 }}>Images:</Text>
+                <Text style={{ fontWeight: 'bold', flex: 1, color: '#F4D03F' }}>Images:</Text>
                 {areaData.images && areaData.images.length > 0 && (
                   <TouchableOpacity
                     onPress={() => {
@@ -931,10 +931,10 @@ export default function AreaDetailsScreen() {
                     <MaterialCommunityIcons
                       name={isPhotoManagementMode ? 'close' : 'pencil'}
                       size={18}
-                      color="#fff"
+                      color="#3D550C"
                     />
                     <Text
-                      style={{ color: '#fff', fontSize: 12, marginLeft: 4 }}
+                      style={{ color: '#3D550C', fontSize: 12, marginLeft: 4 }}
                     >
                       {isPhotoManagementMode ? 'Done' : 'Edit'}
                     </Text>
@@ -1019,8 +1019,8 @@ export default function AreaDetailsScreen() {
                       ) : (
                         <MaterialCommunityIcons
                           name="plus"
-                          size={40}
-                          color="#999"
+                          size={30}
+                          color="#3D550C"
                         />
                       )}
                     </TouchableOpacity>
@@ -1369,9 +1369,9 @@ const localStyles = StyleSheet.create({
     width: (width - 60) / 3,
     height: (width - 60) / 3,
     borderRadius: 8,
-    margin: 5,
+    margin: 2,
     resizeMode: 'cover',
-    backgroundColor: '#ccc',
+    backgroundColor: '#3D550C',
   },
   noImagesText: {
     color: '#888',
@@ -1455,7 +1455,7 @@ const localStyles = StyleSheet.create({
   managementToggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007BFF',
+    backgroundColor: '#F4D03F',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 15,
@@ -1464,7 +1464,7 @@ const localStyles = StyleSheet.create({
     position: 'relative',
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#ddd',
+    backgroundColor: '#3D550C',
   },
   imageThumbnailSelected: {
     borderWidth: 3,
@@ -1480,10 +1480,8 @@ const localStyles = StyleSheet.create({
   addPhotoButton: {
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    borderColor: '#999',
+    backgroundColor: '#F4D03F',
+    margin: 2,
   },
   deleteButtonContainer: {
     marginTop: 15,
